@@ -1,0 +1,71 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+
+  <PropertyGroup>
+    <TargetFramework>net5.0</TargetFramework>
+    <AssemblyName>SqlBatis.DataMapper.SqlServer</AssemblyName>
+    <RootNamespace>SqlBatis.DataMapper.SqlServer</RootNamespace>
+    <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
+    <Description>SQL Server support for SqlBatis.</Description>
+    <Version>4.0.0</Version>
+    <SignAssembly>true</SignAssembly>
+    <AssemblyOriginatorKeyFile>AssemblyKey.snk</AssemblyOriginatorKeyFile>
+    <PackageProjectUrl>https://github.com/rasitha1/SqlBatis</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/rasitha1/SqlBatis</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+    <PackageTags>ibatis datamapper</PackageTags>
+    <PackageReleaseNotes>https://github.com/rasitha1/SqlBatis/blob/master/README.md</PackageReleaseNotes>
+    <Authors>rasitha1</Authors>
+    <Company></Company>
+    <PackageId>SqlBatis.DataMapper.SqlServer</PackageId>
+    <Product>SqlBatis</Product>
+    <PackageLicenseFile>LICENSE.txt</PackageLicenseFile>
+    <PublishRepositoryUrl>true</PublishRepositoryUrl>
+    <IncludeSymbols>true</IncludeSymbols>
+    <SymbolPackageFormat>snupkg</SymbolPackageFormat>
+  </PropertyGroup>
+
+
+  <ItemGroup>
+    <None Remove="Providers\providers.config" />
+  </ItemGroup>
+
+
+  <ItemGroup>
+    <EmbeddedResource Include="Providers\providers.config" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="LICENSE.txt" Pack="true" PackagePath="" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <LegalFiles Include="..\..\LICENSE.txt" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.SourceLink.GitHub" Version="1.0.0" PrivateAssets="All" />
+  </ItemGroup>
+
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|AnyCPU'">
+    <DocumentationFile>SqlBatis.DataMapper.SqlServer.xml</DocumentationFile>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="System.Data.SqlClient" Version="4.8.1" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\SqlBatis.DataMapper\SqlBatis.DataMapper.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Folder Include="DependencyInjection\" />
+  </ItemGroup>
+
+  <Target Name="CopyFiles" BeforeTargets="PreBuildEvent">
+    <Copy SkipUnchangedFiles="true" SourceFiles="@(LegalFiles)" DestinationFolder="$(ProjectDir)" />
+  </Target>
+
+
+</Project>

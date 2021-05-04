@@ -1,0 +1,54 @@
+<?xml version="1.0"?>
+<doc>
+    <assembly>
+        <name>SqlBatis.DataMapper.SqlServer</name>
+    </assembly>
+    <members>
+        <member name="T:SqlBatis.DataMapper.SqlServer.SqlTableParameter">
+            <summary>
+            Specialized parameter for SQL Server Structured Data Type
+            </summary>
+        </member>
+        <member name="P:SqlBatis.DataMapper.SqlServer.SqlTableParameter.Data">
+            <summary>
+            Data table
+            </summary>
+        </member>
+        <member name="P:SqlBatis.DataMapper.SqlServer.SqlTableParameter.TypeName">
+            <summary>
+            Table type name
+            </summary>
+        </member>
+        <member name="T:SqlBatis.DataMapper.SqlServer.TypeHandlers.SqlServerStructuredTypeHandler">
+            <summary>
+            Type handler that can be used with a <see cref="T:SqlBatis.DataMapper.SqlServer.SqlTableParameter"/>
+            </summary>
+        </member>
+        <member name="M:SqlBatis.DataMapper.SqlServer.TypeHandlers.SqlServerStructuredTypeHandler.GetResult(SqlBatis.DataMapper.TypeHandlers.IResultGetter)">
+            <summary>
+            Return the same value from the current getter.
+            </summary>
+            <param name="getter"></param>
+            <returns></returns>
+        </member>
+        <member name="P:SqlBatis.DataMapper.SqlServer.TypeHandlers.SqlServerStructuredTypeHandler.NullValue">
+            <summary>
+            Return the nullable equivalent as null.
+            </summary>
+        </member>
+        <member name="M:SqlBatis.DataMapper.SqlServer.TypeHandlers.SqlServerStructuredTypeHandler.SetParameter(SqlBatis.DataMapper.TypeHandlers.IParameterSetter,System.Object)">
+            <summary>
+            Set the SqlDbType to Structured and set the setter's value to the parameter value.
+            </summary>
+            <param name="setter"></param>
+            <param name="parameter"></param>
+        </member>
+        <member name="M:SqlBatis.DataMapper.SqlServer.TypeHandlers.SqlServerStructuredTypeHandler.ValueOf(System.String)">
+            <summary>
+            Return the parsed value of this type from a string.
+            </summary>
+            <param name="s"></param>
+            <returns></returns>
+        </member>
+    </members>
+</doc>
