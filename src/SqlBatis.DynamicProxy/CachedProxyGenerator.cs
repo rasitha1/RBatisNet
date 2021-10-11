@@ -35,7 +35,6 @@ using System.Linq;
 using System.Reflection;
 using Castle.DynamicProxy;
 using SqlBatis.DataMapper.Exceptions;
-using SqlBatis.DataMapper.Logging;
 
 #endregion
 
@@ -46,14 +45,12 @@ namespace IBatisNet.DynamicProxy
     /// </summary>
     public class CachedProxyGenerator : ProxyGenerator
     {
-        private static readonly ILog _log = LogManager.GetLogger(MethodBase.GetCurrentMethod()?.DeclaringType ?? typeof(CachedProxyGenerator));
-
         // key = mapped type
         // value = proxy type
         private readonly IDictionary _cachedProxyTypes;
 
         /// <summary>
-        ///     Cosntructor
+        ///     Constructor
         /// </summary>
         public CachedProxyGenerator()
         {
@@ -117,7 +114,6 @@ namespace IBatisNet.DynamicProxy
             }
             catch (Exception e)
             {
-                _log.Error("Castle Dynamic Proxy Generator failed", e);
                 throw new IBatisNetException("Castle Proxy Generator failed", e);
             }
 

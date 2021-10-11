@@ -30,8 +30,7 @@ using System;
 using System.Collections;
 using System.Collections.Specialized;
 using System.Data;
-using System.Text;
-using SqlBatis.DataMapper;
+using Microsoft.Extensions.Logging;
 using SqlBatis.DataMapper.Utilities;
 using SqlBatis.DataMapper.Utilities.Objects;
 using SqlBatis.DataMapper.Utilities.Objects.Members;
@@ -54,27 +53,21 @@ namespace SqlBatis.DataMapper
 	{
 
 		#region Fields
-		//(MappedStatement Name, MappedStatement)
-		private HybridDictionary _mappedStatements = new HybridDictionary();
-		//(ResultMap name, ResultMap)
-		private HybridDictionary _resultMaps = new HybridDictionary();
-		//(ParameterMap name, ParameterMap)
-		private HybridDictionary _parameterMaps = new HybridDictionary();
-		// DataSource
-        private IDataSource _dataSource = null;
-		private TypeHandlerFactory _typeHandlerFactory = null; 
-        private DBHelperParameterCache _dbHelperParameterCache = null;
+		private readonly HybridDictionary _mappedStatements = new HybridDictionary();
+		private readonly HybridDictionary _resultMaps = new HybridDictionary();
+		private readonly HybridDictionary _parameterMaps = new HybridDictionary();
+		private readonly TypeHandlerFactory _typeHandlerFactory; 
+        private readonly DBHelperParameterCache _dbHelperParameterCache;
+        private readonly ILoggerFactory _loggerFactory;
 
-		// An identifiant 
-		private string _id = string.Empty;
 
-		/// <summary>
+        /// <summary>
 		/// Container session unique for each thread. 
 		/// </summary>
-        private ISessionStore _sessionStore = null;
-        private IObjectFactory _objectFactory = null;
-        private AccessorFactory _accessorFactory = null;
-        private DataExchangeFactory _dataExchangeFactory = null;
+        private ISessionStore _sessionStore;
+        private readonly IObjectFactory _objectFactory;
+        private readonly AccessorFactory _accessorFactory;
+        private readonly DataExchangeFactory _dataExchangeFactory;
 		#endregion
 
 		#region Properties
@@ -82,10 +75,7 @@ namespace SqlBatis.DataMapper
         /// <summary>
         /// Name used to identify the the <see cref="SqlMapper"/>
         /// </summary>
-        public string Id
-        {
-            get { return _id; }
-        }
+        public string Id { get; }
 
 		/// <summary>
 		/// Allow to set a custom session store like the <see cref="AsyncLocalSessionStore"/>
@@ -96,17 +86,14 @@ namespace SqlBatis.DataMapper
 		/// </example>
 		public ISessionStore SessionStore
         {
-            set { _sessionStore = value; }
+            set => _sessionStore = value;
         }
 	    
 		/// <summary>
 		///  Returns the DalSession instance 
 		///  currently being used by the SqlMap.
 		/// </summary>
-		public ISqlMapSession LocalSession
-		{
-			get { return _sessionStore.LocalSession; }
-		}
+		public ISqlMapSession LocalSession => _sessionStore.LocalSession;
 
         /// <summary>
         /// Gets a value indicating whether this instance is session started.
@@ -114,73 +101,64 @@ namespace SqlBatis.DataMapper
         /// <value>
         /// 	<c>true</c> if this instance is session started; otherwise, <c>false</c>.
         /// </value>
-		public bool IsSessionStarted
-		{
-			get { return (_sessionStore.LocalSession != null); }
-		}
+		public bool IsSessionStarted => (_sessionStore.LocalSession != null);
 
         /// <summary>
         /// Gets the DB helper parameter cache.
         /// </summary>
         /// <value>The DB helper parameter cache.</value>
-        public DBHelperParameterCache DBHelperParameterCache
-        {
-            get { return _dbHelperParameterCache; }
-        }
+        public DBHelperParameterCache DBHelperParameterCache => _dbHelperParameterCache;
 
-		/// <summary>
+        /// <summary>
 		/// Factory for DataExchange objects
 		/// </summary>
-        public DataExchangeFactory DataExchangeFactory
-		{
-			get { return _dataExchangeFactory; }
-		}
+        public DataExchangeFactory DataExchangeFactory => _dataExchangeFactory;
 
-		/// <summary>
+        /// <summary>
 		/// The TypeHandlerFactory
 		/// </summary>
-        public TypeHandlerFactory TypeHandlerFactory
-		{
-			get { return _typeHandlerFactory; }
-		}
+        public TypeHandlerFactory TypeHandlerFactory => _typeHandlerFactory;
 
         /// <summary>
         /// The meta factory for object factory
         /// </summary>
-        public IObjectFactory ObjectFactory
-        {
-            get { return _objectFactory; }
-        }
+        public IObjectFactory ObjectFactory => _objectFactory;
 
         /// <summary>
         /// The factory which build <see cref="IAccessor"/>
         /// </summary>
-        public AccessorFactory AccessorFactory
-        {
-            get { return _accessorFactory; }
-        }
+        public AccessorFactory AccessorFactory => _accessorFactory;
 
-		#endregion
+        #endregion
 
 		#region Constructor (s) / Destructor
-
 
         /// <summary>
         /// Initializes a new instance of the <see cref="SqlMapper"/> class.
         /// </summary>
+        /// <param name="id"></param>
         /// <param name="objectFactory">The object factory.</param>
         /// <param name="accessorFactory">The accessor factory.</param>
-        public SqlMapper(IObjectFactory objectFactory,
-            AccessorFactory accessorFactory) 
+        /// <param name="typeHandlerFactory"></param>
+        /// <param name="parameterCache"></param>
+        /// <param name="sessionStoreFactory"></param>
+        /// <param name="loggerFactory"></param>
+        internal SqlMapper(string id, IObjectFactory objectFactory,
+            AccessorFactory accessorFactory, 
+            TypeHandlerFactory typeHandlerFactory, 
+            DBHelperParameterCache parameterCache,
+            SessionStoreFactory sessionStoreFactory,
+            ILoggerFactory loggerFactory) 
 		{
-            _typeHandlerFactory = new TypeHandlerFactory();
-            _dbHelperParameterCache = new DBHelperParameterCache();
+            _typeHandlerFactory = typeHandlerFactory;
+            _dbHelperParameterCache = parameterCache;
+            _loggerFactory = loggerFactory;
             _objectFactory = objectFactory;
             _accessorFactory = accessorFactory;
 
             _dataExchangeFactory = new DataExchangeFactory(_typeHandlerFactory, _objectFactory, accessorFactory);
-			_id = HashCodeProvider.GetIdentityHashCode(this).ToString();
-            _sessionStore = SessionStoreFactory.GetSessionStore(_id);
+			Id = id;
+            _sessionStore = sessionStoreFactory.GetSessionStore(Id);
 		}
 		#endregion
 
@@ -280,7 +258,7 @@ namespace SqlBatis.DataMapper
 		/// <param name="openConnection">Open a connection.</param>
 		public ISqlMapSession BeginTransaction(bool openConnection)
 		{
-			ISqlMapSession session = null;
+			ISqlMapSession session;
 
 			if (openConnection)
 			{
@@ -293,7 +271,7 @@ namespace SqlBatis.DataMapper
 				{
 					throw new DataMapperException("SqlMap could not invoke BeginTransaction(). A session must be Open. Call OpenConnection() first.");
 				}
-				session.BeginTransaction(openConnection);
+				session.BeginTransaction(false);
 			}
 
 			return session;
@@ -344,7 +322,7 @@ namespace SqlBatis.DataMapper
 		/// </param>
 		public ISqlMapSession BeginTransaction(bool openNewConnection, IsolationLevel isolationLevel)
 		{
-			ISqlMapSession session = null;
+			ISqlMapSession session;
 
 			if (openNewConnection)
 			{
@@ -357,7 +335,7 @@ namespace SqlBatis.DataMapper
 				{
 					throw new DataMapperException("SqlMap could not invoke BeginTransaction(). A session must be Open. Call OpenConnection() first.");
 				}
-				session.BeginTransaction(openNewConnection, isolationLevel);
+				session.BeginTransaction(false, isolationLevel);
 			}
 			return session;
 		}
@@ -371,7 +349,7 @@ namespace SqlBatis.DataMapper
 		/// <param name="openNewConnection">Open a connection.</param>
 		public ISqlMapSession BeginTransaction(string connectionString, bool openNewConnection, IsolationLevel isolationLevel)
 		{
-			ISqlMapSession session = null;
+			ISqlMapSession session;
 
 			if (openNewConnection)
 			{
@@ -384,7 +362,7 @@ namespace SqlBatis.DataMapper
 				{
 					throw new DataMapperException("SqlMap could not invoke BeginTransaction(). A session must be Open. Call OpenConnection() first.");
 				}
-				session.BeginTransaction(connectionString, openNewConnection, isolationLevel);
+				session.BeginTransaction(connectionString, false, isolationLevel);
 			}
 			return session;
 		}
@@ -484,9 +462,41 @@ namespace SqlBatis.DataMapper
 		}
 
 		#endregion
-		
+
+        private T GetWithLocalSessionSupport<T>(Func<ISqlMapSession,T> logic)
+        {
+            var isSessionLocal = false;
+            var session = _sessionStore.LocalSession;
+
+            if (session == null)
+            {
+                session = CreateSqlMapSession();
+                isSessionLocal = true;
+            }
+
+            try
+            {
+                return logic(session);
+            }
+            finally
+            {
+                if (isSessionLocal)
+                {
+                    session.CloseConnection();
+                }
+            }
+		}
+        private void RunWithLocalSessionSupport<T>(Action<ISqlMapSession> logic)
+        {
+            GetWithLocalSessionSupport<T>(session =>
+            {
+                logic(session);
+                return default;
+            });
+        }
+
 		#region QueryForObject
-  
+
 		/// <summary>
 		/// Executes a Sql SELECT statement that returns that returns data 
 		/// to populate a single object instance.
@@ -498,36 +508,13 @@ namespace SqlBatis.DataMapper
 		/// <param name="parameterObject">The object used to set the parameters in the SQL.</param>
 		/// <returns> The single result object populated with the result set data.</returns>
 		public object QueryForObject(string statementName, object parameterObject)
-		{
-			bool isSessionLocal = false;
-			ISqlMapSession session = _sessionStore.LocalSession;
-			object result;
- 
-			if (session == null) 
-			{
-                session = CreateSqlMapSession();
-				isSessionLocal = true;
-			}
-
-			try 
-			{
-				IMappedStatement statement = GetMappedStatement(statementName);
-				result = statement.ExecuteQueryForObject(session, parameterObject);
-			} 
-			catch
-			{
-				throw;
-			}
-			finally
-			{
-				if ( isSessionLocal )
-				{
-					session.CloseConnection();
-				}
-			}
-
-			return result;
-		}
+        {
+            return GetWithLocalSessionSupport(session =>
+            {
+                var statement = GetMappedStatement(statementName);
+                return statement.ExecuteQueryForObject(session, parameterObject);
+            });
+        }
 
 		/// <summary>
 		/// Executes a Sql SELECT statement that returns a single object of the type of the
@@ -539,35 +526,12 @@ namespace SqlBatis.DataMapper
 		/// <returns>The single result object populated with the result set data.</returns>
 		public object QueryForObject(string statementName, object parameterObject, object resultObject)
 		{
-			bool isSessionLocal = false;
-			ISqlMapSession session = _sessionStore.LocalSession;
-			object result = null;
- 
-			if (session == null) 
-			{
-                session = CreateSqlMapSession();
-				isSessionLocal = true;
-			}
-
-			try 
-			{
-				IMappedStatement statement = GetMappedStatement(statementName);
-				result = statement.ExecuteQueryForObject(session, parameterObject, resultObject);
-			} 
-			catch
-			{
-				throw;
-			}
-			finally
-			{
-				if ( isSessionLocal )
-				{
-					session.CloseConnection();
-				}
-			}
-
-			return result;
-		}
+            return GetWithLocalSessionSupport(session =>
+            {
+                var statement = GetMappedStatement(statementName);
+                return statement.ExecuteQueryForObject(session, parameterObject, resultObject);
+            });
+        }
 
         #endregion
 
@@ -584,34 +548,11 @@ namespace SqlBatis.DataMapper
         /// <returns> The single result object populated with the result set data.</returns>
         public T QueryForObject<T>(string statementName, object parameterObject)
         {
-            bool isSessionLocal = false;
-            ISqlMapSession session = _sessionStore.LocalSession;
-            T result;
-
-            if (session == null)
+            return GetWithLocalSessionSupport(session =>
             {
-                session = CreateSqlMapSession();
-                isSessionLocal = true;
-            }
-
-            try
-            {
-                IMappedStatement statement = GetMappedStatement(statementName);
-                result = statement.ExecuteQueryForObject<T>(session, parameterObject);
-            }
-            catch
-            {
-                throw;
-            }
-            finally
-            {
-                if (isSessionLocal)
-                {
-                    session.CloseConnection();
-                }
-            }
-
-            return result;
+                var statement = GetMappedStatement(statementName);
+                return statement.ExecuteQueryForObject<T>(session, parameterObject);
+            });
         }
 
         /// <summary>
@@ -624,34 +565,11 @@ namespace SqlBatis.DataMapper
         /// <returns>The single result object populated with the result set data.</returns>
         public T QueryForObject<T>(string statementName, object parameterObject, T instanceObject)
         {
-            bool isSessionLocal = false;
-            ISqlMapSession session = _sessionStore.LocalSession;
-            T result = default(T);
-
-            if (session == null)
+            return GetWithLocalSessionSupport(session =>
             {
-                session = CreateSqlMapSession();
-                isSessionLocal = true;
-            }
-
-            try
-            {
-                IMappedStatement statement = GetMappedStatement(statementName);
-                result = statement.ExecuteQueryForObject<T>(session, parameterObject, instanceObject);
-            }
-            catch
-            {
-                throw;
-            }
-            finally
-            {
-                if (isSessionLocal)
-                {
-                    session.CloseConnection();
-                }
-            }
-
-            return result;
+                var statement = GetMappedStatement(statementName);
+                return statement.ExecuteQueryForObject(session, parameterObject, instanceObject);
+            });
         }
         #endregion
 
@@ -711,35 +629,12 @@ namespace SqlBatis.DataMapper
 		///<exception cref="DataMapperException">If a transaction is not in progress, or the database throws an exception.</exception>
 		public IDictionary QueryForMap(string statementName, object parameterObject, string keyProperty, string valueProperty)
 		{
-			bool isSessionLocal = false;
-			ISqlMapSession session = _sessionStore.LocalSession;
-			IDictionary map = null;
- 
-			if (session == null) 
-			{
-                session = CreateSqlMapSession();
-				isSessionLocal = true;
-			}
-
-			try 
-			{
-				IMappedStatement statement = GetMappedStatement(statementName);
-				map = statement.ExecuteQueryForMap(session, parameterObject, keyProperty, valueProperty);
-			} 
-			catch
-			{
-				throw;
-			}
-			finally
-			{
-				if ( isSessionLocal )
-				{
-					session.CloseConnection();
-				}
-			}
-
-			return map;
-		}
+            return GetWithLocalSessionSupport(session =>
+            {
+                var statement = GetMappedStatement(statementName);
+                return statement.ExecuteQueryForMap(session, parameterObject, keyProperty, valueProperty);
+            });
+        }
 		
 		#endregion
 
@@ -757,35 +652,12 @@ namespace SqlBatis.DataMapper
 		/// <returns>A List of result objects.</returns>
 		public IList QueryForList(string statementName, object parameterObject)
 		{
-			bool isSessionLocal = false;
-			ISqlMapSession session = _sessionStore.LocalSession;
-			IList list;
- 
-			if (session == null) 
-			{
-                session = CreateSqlMapSession();
-				isSessionLocal = true;
-			}
-
-			try 
-			{
-				IMappedStatement statement = GetMappedStatement(statementName);
-				list = statement.ExecuteQueryForList(session, parameterObject);				
-			} 
-			catch
-			{
-				throw;
-			}
-			finally
-			{
-				if ( isSessionLocal )
-				{
-					session.CloseConnection();
-				}
-			}
-
-			return list;
-		}
+            return GetWithLocalSessionSupport(session =>
+            {
+                var statement = GetMappedStatement(statementName);
+                return statement.ExecuteQueryForList(session, parameterObject);
+            });
+        }
 		
 		/// <summary>
 		/// Executes the SQL and retuns all rows selected.
@@ -800,35 +672,12 @@ namespace SqlBatis.DataMapper
 		/// <returns>A List of result objects.</returns>
 		public IList QueryForList(string statementName, object parameterObject, int skipResults, int maxResults)	
 		{
-			bool isSessionLocal = false;
-			ISqlMapSession session = _sessionStore.LocalSession;
-			IList list;
- 
-			if (session == null) 
-			{
-                session = CreateSqlMapSession();
-				isSessionLocal = true;
-			}
-
-			try 
-			{
-				IMappedStatement statement = GetMappedStatement(statementName);
-				list = statement.ExecuteQueryForList(session, parameterObject, skipResults, maxResults);
-			} 
-			catch
-			{
-				throw;
-			}
-			finally
-			{
-				if ( isSessionLocal )
-				{
-					session.CloseConnection();
-				}
-			}
-
-			return list;
-		}
+            return GetWithLocalSessionSupport(session =>
+            {
+                var statement = GetMappedStatement(statementName);
+                return statement.ExecuteQueryForList(session, parameterObject, skipResults, maxResults);
+            });
+        }
 
 		
 		/// <summary>
@@ -844,37 +693,17 @@ namespace SqlBatis.DataMapper
 		/// <returns>A List of result objects.</returns>
 		public void QueryForList(string statementName, object parameterObject, IList resultObject)
 		{
-			bool isSessionLocal = false;
-			ISqlMapSession session = _sessionStore.LocalSession;
- 
-			if (resultObject == null)
-			{
-				throw new DataMapperException("resultObject parameter must be instantiated before being passed to SqlMapper.QueryForList");
-			}
+            if (resultObject == null)
+            {
+                throw new DataMapperException("resultObject parameter must be instantiated before being passed to SqlMapper.QueryForList");
+            }
 
-			if (session == null) 
-			{
-                session = CreateSqlMapSession();
-				isSessionLocal = true;
-			}
-
-			try 
-			{
-				IMappedStatement statement = GetMappedStatement(statementName);
+            RunWithLocalSessionSupport<object>(session =>
+            {
+				var statement = GetMappedStatement(statementName);
 				statement.ExecuteQueryForList(session, parameterObject, resultObject);
-			} 
-			catch
-			{
-				throw;
-			}
-			finally
-			{
-				if ( isSessionLocal )
-				{
-					session.CloseConnection();
-				}
-			}
-		}
+			});
+        }
 		
 		#endregion
         
@@ -891,36 +720,13 @@ namespace SqlBatis.DataMapper
         /// <param name="valueProperty">The property of the result object to be used as the value (or null)</param>
         /// <returns>A IDictionary of object containing the rows keyed by keyProperty.</returns>
         ///<exception cref="DataMapperException">If a transaction is not in progress, or the database throws an exception.</exception>
-        public IDictionary<K, V> QueryForDictionary<K, V>(string statementName, object parameterObject, string keyProperty, string valueProperty)
+        public IDictionary<TK, TV> QueryForDictionary<TK, TV>(string statementName, object parameterObject, string keyProperty, string valueProperty)
         {
-            bool isSessionLocal = false;
-            ISqlMapSession session = _sessionStore.LocalSession;
-            IDictionary<K, V> map = null;
-
-            if (session == null)
+            return GetWithLocalSessionSupport(session =>
             {
-                session = CreateSqlMapSession();
-                isSessionLocal = true;
-            }
-
-            try
-            {
-                IMappedStatement statement = GetMappedStatement(statementName);
-                map = statement.ExecuteQueryForDictionary<K, V>(session, parameterObject, keyProperty, valueProperty);
-            }
-            catch
-            {
-                throw;
-            }
-            finally
-            {
-                if (isSessionLocal)
-                {
-                    session.CloseConnection();
-                }
-            }
-
-            return map;
+                var statement = GetMappedStatement(statementName);
+                return statement.ExecuteQueryForDictionary<TK, TV>(session, parameterObject, keyProperty, valueProperty);
+            });
         }
 	    
 	    /// <summary>
@@ -931,9 +737,9 @@ namespace SqlBatis.DataMapper
         /// <param name="parameterObject">The object used to set the parameters in the SQL.</param>
         /// <param name="keyProperty">The property of the result object to be used as the key.</param>
         /// <returns>A IDictionary of object containing the rows keyed by keyProperty.</returns>
-        public IDictionary<K, V> QueryForDictionary<K, V>(string statementName, object parameterObject, string keyProperty)
+        public IDictionary<TK, TV> QueryForDictionary<TK, TV>(string statementName, object parameterObject, string keyProperty)
         {
-            return QueryForDictionary<K, V>(statementName, parameterObject, keyProperty, null);
+            return QueryForDictionary<TK, TV>(statementName, parameterObject, keyProperty, null);
         }
 
         /// <summary>
@@ -950,36 +756,13 @@ namespace SqlBatis.DataMapper
         /// <param name="rowDelegate">A delegate called once per row in the QueryForDictionary method></param>
         /// <returns>A IDictionary (Hashtable) of object containing the rows keyed by keyProperty.</returns>
         ///<exception cref="DataMapperException">If a transaction is not in progress, or the database throws an exception.</exception>
-        public IDictionary<K, V> QueryForDictionary<K, V>(string statementName, object parameterObject, string keyProperty, string valueProperty, DictionaryRowDelegate<K, V> rowDelegate)
+        public IDictionary<TK, TV> QueryForDictionary<TK, TV>(string statementName, object parameterObject, string keyProperty, string valueProperty, DictionaryRowDelegate<TK, TV> rowDelegate)
         {
-            bool isSessionLocal = false;
-            ISqlMapSession session = _sessionStore.LocalSession;
-            IDictionary<K, V> map = null;
-
-            if (session == null)
+            return GetWithLocalSessionSupport(session =>
             {
-                session = CreateSqlMapSession();
-                isSessionLocal = true;
-            }
-
-            try
-            {
-                IMappedStatement statement = GetMappedStatement(statementName);
-                map = statement.ExecuteQueryForDictionary<K, V>(session, parameterObject, keyProperty, valueProperty, rowDelegate);
-            }
-            catch
-            {
-                throw;
-            }
-            finally
-            {
-                if (isSessionLocal)
-                {
-                    session.CloseConnection();
-                }
-            }
-
-            return map;
+                var statement = GetMappedStatement(statementName);
+                return statement.ExecuteQueryForDictionary(session, parameterObject, keyProperty, valueProperty, rowDelegate);
+            });
         }
 	    
 	    
@@ -995,34 +778,11 @@ namespace SqlBatis.DataMapper
         /// <returns>A List of result objects.</returns>
         public IList<T> QueryForList<T>(string statementName, object parameterObject)
         {
-            bool isSessionLocal = false;
-            ISqlMapSession session = _sessionStore.LocalSession;
-            IList<T> list;
-
-            if (session == null)
+            return GetWithLocalSessionSupport(session =>
             {
-                session = CreateSqlMapSession();
-                isSessionLocal = true;
-            }
-
-            try
-            {
-                IMappedStatement statement = GetMappedStatement(statementName);
-                list = statement.ExecuteQueryForList<T>(session, parameterObject);
-            }
-            catch
-            {
-                throw;
-            }
-            finally
-            {
-                if (isSessionLocal)
-                {
-                    session.CloseConnection();
-                }
-            }
-
-            return list;
+                var statement = GetMappedStatement(statementName);
+                return statement.ExecuteQueryForList<T>(session, parameterObject);
+            });
         }
 
         /// <summary>
@@ -1038,34 +798,11 @@ namespace SqlBatis.DataMapper
         /// <returns>A List of result objects.</returns>
         public IList<T> QueryForList<T>(string statementName, object parameterObject, int skipResults, int maxResults)
         {
-            bool isSessionLocal = false;
-            ISqlMapSession session = _sessionStore.LocalSession;
-            IList<T> list;
-
-            if (session == null)
+            return GetWithLocalSessionSupport(session =>
             {
-                session = CreateSqlMapSession();
-                isSessionLocal = true;
-            }
-
-            try
-            {
-                IMappedStatement statement = GetMappedStatement(statementName);
-                list = statement.ExecuteQueryForList<T>(session, parameterObject, skipResults, maxResults);
-            }
-            catch
-            {
-                throw;
-            }
-            finally
-            {
-                if (isSessionLocal)
-                {
-                    session.CloseConnection();
-                }
-            }
-
-            return list;
+                var statement = GetMappedStatement(statementName);
+                return statement.ExecuteQueryForList<T>(session, parameterObject, skipResults, maxResults);
+            });
         }
 
 
@@ -1081,55 +818,18 @@ namespace SqlBatis.DataMapper
         /// <param name="resultObject">An Ilist object used to hold the objects.</param>
         public void QueryForList<T>(string statementName, object parameterObject, IList<T> resultObject)
         {
-            bool isSessionLocal = false;
-            ISqlMapSession session = _sessionStore.LocalSession;
-
             if (resultObject == null)
             {
                 throw new DataMapperException("resultObject parameter must be instantiated before being passed to SqlMapper.QueryForList");
             }
 
-            if (session == null)
+            RunWithLocalSessionSupport<object>(session =>
             {
-                session = CreateSqlMapSession();
-                isSessionLocal = true;
-            }
-
-            try
-            {
-                IMappedStatement statement = GetMappedStatement(statementName);
+                var statement = GetMappedStatement(statementName);
                 statement.ExecuteQueryForList(session, parameterObject, resultObject);
-            }
-            catch
-            {
-                throw;
-            }
-            finally
-            {
-                if (isSessionLocal)
-                {
-                    session.CloseConnection();
-                }
-            }
+            });
         }
         #endregion
-
-		#region QueryForPaginatedList
-		/// <summary>
-		/// Executes the SQL and retuns a subset of the results in a dynamic PaginatedList that can be used to
-		/// automatically scroll through results from a database table.
-		/// </summary>
-		/// <param name="statementName">The name of the sql statement to execute.</param>
-		/// <param name="parameterObject">The object used to set the parameters in the SQL</param>
-		/// <param name="pageSize">The maximum number of objects to store in each page</param>
-		/// <returns>A PaginatedList of beans containing the rows</returns>
-        [Obsolete("This method will be remove in future version.", false)]
-		public PaginatedList QueryForPaginatedList(String statementName, object parameterObject, int pageSize)
-		{
-			IMappedStatement statement = GetMappedStatement(statementName);
-			return new PaginatedList(statement, parameterObject, pageSize);
-		}
-		#endregion
 
 		#region QueryWithRowDelegate
 
@@ -1146,34 +846,11 @@ namespace SqlBatis.DataMapper
 		/// <returns>A List of result objects.</returns>
 		public IList QueryWithRowDelegate(string statementName, object parameterObject, RowDelegate rowDelegate)
 		{
-			bool isSessionLocal = false;
-			ISqlMapSession session = _sessionStore.LocalSession;
-			IList list = null;
- 
-			if (session == null) 
-			{
-                session = CreateSqlMapSession();
-				isSessionLocal = true;
-			}
-
-			try 
-			{
-				IMappedStatement statement = GetMappedStatement(statementName);
-				list = statement.ExecuteQueryForRowDelegate(session, parameterObject, rowDelegate);
-			} 
-			catch
-			{
-				throw;
-			}
-			finally
-			{
-				if ( isSessionLocal )
-				{
-					session.CloseConnection();
-				}
-			}
-
-			return list;
+            return GetWithLocalSessionSupport(session =>
+            {
+                var statement = GetMappedStatement(statementName);
+                return statement.ExecuteQueryForRowDelegate(session, parameterObject, rowDelegate);
+            });
 		}
 
         /// <summary>
@@ -1189,34 +866,11 @@ namespace SqlBatis.DataMapper
         /// <returns>A List of result objects.</returns>
         public IList<T> QueryWithRowDelegate<T>(string statementName, object parameterObject, RowDelegate<T> rowDelegate)
         {
-            bool isSessionLocal = false;
-            ISqlMapSession session = _sessionStore.LocalSession;
-            IList<T> list = null;
-
-            if (session == null)
+            return GetWithLocalSessionSupport(session =>
             {
-                session = CreateSqlMapSession();
-                isSessionLocal = true;
-            }
-
-            try
-            {
-                IMappedStatement statement = GetMappedStatement(statementName);
-                list = statement.ExecuteQueryForRowDelegate<T>(session, parameterObject, rowDelegate);
-            }
-            catch
-            {
-                throw;
-            }
-            finally
-            {
-                if (isSessionLocal)
-                {
-                    session.CloseConnection();
-                }
-            }
-
-            return list;
+                var statement = GetMappedStatement(statementName);
+                return statement.ExecuteQueryForRowDelegate(session, parameterObject, rowDelegate);
+            });
         }
 
 		/// <summary>
@@ -1235,35 +889,12 @@ namespace SqlBatis.DataMapper
 		///<exception cref="DataMapperException">If a transaction is not in progress, or the database throws an exception.</exception>
 		public IDictionary QueryForMapWithRowDelegate(string statementName, object parameterObject, string keyProperty, string valueProperty, DictionaryRowDelegate rowDelegate)
 		{
-			bool isSessionLocal = false;
-			ISqlMapSession session = _sessionStore.LocalSession;
-			IDictionary map = null;
- 
-			if (session == null) 
-			{
-                session = CreateSqlMapSession();
-				isSessionLocal = true;
-			}
-
-			try 
-			{
-				IMappedStatement statement = GetMappedStatement(statementName);
-				map = statement.ExecuteQueryForMapWithRowDelegate(session, parameterObject, keyProperty, valueProperty, rowDelegate);
-			} 
-			catch
-			{
-				throw;
-			}
-			finally
-			{
-				if ( isSessionLocal )
-				{
-					session.CloseConnection();
-				}
-			}
-
-			return map;
-		}
+            return GetWithLocalSessionSupport(session =>
+            {
+                IMappedStatement statement = GetMappedStatement(statementName);
+                return statement.ExecuteQueryForMapWithRowDelegate(session, parameterObject, keyProperty, valueProperty, rowDelegate);
+            });
+        }
 		
 		#endregion
 
@@ -1287,31 +918,12 @@ namespace SqlBatis.DataMapper
 		/// </returns>
 		public object Insert(string statementName, object parameterObject)
 		{
-			bool isSessionLocal = false;
-			ISqlMapSession session = _sessionStore.LocalSession;
-			object generatedKey = null;
- 
-			if (session == null) 
-			{
-                session = CreateSqlMapSession();
-				isSessionLocal = true;
-			}
-
-			try 
-			{
-				IMappedStatement statement = GetMappedStatement(statementName);
-				generatedKey = statement.ExecuteInsert(session, parameterObject);
-			} 
-			finally
-			{
-				if ( isSessionLocal )
-				{
-					session.CloseConnection();
-				}
-			}
-
-			return generatedKey;
-		}
+            return GetWithLocalSessionSupport(session =>
+            {
+                var statement = GetMappedStatement(statementName);
+                return statement.ExecuteInsert(session, parameterObject);
+            });
+        }
 
 		/// <summary>
 		/// Executes a Sql UPDATE statement.
@@ -1327,35 +939,12 @@ namespace SqlBatis.DataMapper
 		/// <returns>The number of rows effected.</returns>
 		public int Update(string statementName, object parameterObject)
 		{
-			bool isSessionLocal = false;
-			ISqlMapSession session = _sessionStore.LocalSession;
-			int rows = 0; // the number of rows affected
-
-			if (session == null) 
-			{
-                session = CreateSqlMapSession();
-				isSessionLocal = true;
-			}
-
-			try 
-			{
-				IMappedStatement statement = GetMappedStatement(statementName);
-				rows = statement.ExecuteUpdate(session, parameterObject);
-			} 
-			catch
-			{
-				throw;
-			}
-			finally
-			{
-				if ( isSessionLocal )
-				{
-					session.CloseConnection();
-				}
-			}
-
-			return rows;
-		}
+            return GetWithLocalSessionSupport(session =>
+            {
+                var statement = GetMappedStatement(statementName);
+                return statement.ExecuteUpdate(session, parameterObject);
+            });
+        }
 
 		/// <summary>
 		///  Executes a Sql DELETE statement.
@@ -1366,35 +955,12 @@ namespace SqlBatis.DataMapper
 		/// <returns>The number of rows effected.</returns>
 		public int Delete(string statementName, object parameterObject)
 		{
-			bool isSessionLocal = false;
-			ISqlMapSession session = _sessionStore.LocalSession;
-			int rows = 0; // the number of rows affected
-
-			if (session == null) 
-			{
-                session = CreateSqlMapSession();
-				isSessionLocal = true;
-			}
-
-			try 
-			{
-				IMappedStatement statement = GetMappedStatement(statementName);
-				rows = statement.ExecuteUpdate(session, parameterObject);
-			} 
-			catch
-			{
-				throw;
-			}
-			finally
-			{
-				if ( isSessionLocal )
-				{
-					session.CloseConnection();
-				}
-			}
-
-			return rows;
-		}
+            return GetWithLocalSessionSupport(session =>
+            {
+                IMappedStatement statement = GetMappedStatement(statementName);
+                return statement.ExecuteUpdate(session, parameterObject);
+            });
+        }
 
 		#endregion
 
@@ -1421,7 +987,7 @@ namespace SqlBatis.DataMapper
 		/// <param name="mappedStatement">The statement to add</param>
 		public void AddMappedStatement(string key, IMappedStatement mappedStatement) 
 		{
-			if (_mappedStatements.Contains(key) == true) 
+			if (_mappedStatements.Contains(key)) 
 			{
 				throw new DataMapperException("This SQL map already contains a MappedStatement named " + mappedStatement.Id);
 			}
@@ -1431,12 +997,9 @@ namespace SqlBatis.DataMapper
 		/// <summary>
 		/// The MappedStatements collection
 		/// </summary>
-        public HybridDictionary MappedStatements
-		{
-			get { return _mappedStatements; }
-		}
+        public HybridDictionary MappedStatements => _mappedStatements;
 
-		/// <summary>
+        /// <summary>
 		/// Get a ParameterMap by name
 		/// </summary>
 		/// <param name="name">The name of the ParameterMap</param>
@@ -1456,7 +1019,7 @@ namespace SqlBatis.DataMapper
 		/// <param name="parameterMap">the ParameterMap to add</param>
         public void AddParameterMap(ParameterMap parameterMap) 
 		{
-			if (_parameterMaps.Contains(parameterMap.Id) == true) 
+			if (_parameterMaps.Contains(parameterMap.Id)) 
 			{
 				throw new DataMapperException("This SQL map already contains an ParameterMap named " + parameterMap.Id);
 			}
@@ -1483,7 +1046,7 @@ namespace SqlBatis.DataMapper
 		/// <param name="resultMap">The ResultMap to add</param>
         public void AddResultMap(IResultMap resultMap) 
 		{
-			if (_resultMaps.Contains(resultMap.Id) == true) 
+			if (_resultMaps.Contains(resultMap.Id)) 
 			{
 				throw new DataMapperException("This SQL map already contains an ResultMap named " + resultMap.Id);
 			}
@@ -1493,27 +1056,17 @@ namespace SqlBatis.DataMapper
 		/// <summary>
 		/// The ParameterMap collection
 		/// </summary>
-		public HybridDictionary ParameterMaps
-		{
-			get { return _parameterMaps; }
-		}
+		public HybridDictionary ParameterMaps => _parameterMaps;
 
-		/// <summary>
+        /// <summary>
 		/// The ResultMap collection
 		/// </summary>
-        public HybridDictionary ResultMaps
-		{
-			get { return _resultMaps; }
-		}
+        public HybridDictionary ResultMaps => _resultMaps;
 
-		/// <summary>
+        /// <summary>
 		/// The DataSource
 		/// </summary>
-        public IDataSource DataSource
-		{
-			get { return  _dataSource; }
-			set { _dataSource = value; }
-		}
+        public IDataSource DataSource { get; set; }
 		
 		#endregion
 
@@ -1524,7 +1077,7 @@ namespace SqlBatis.DataMapper
         /// <returns>A new session</returns>
         public ISqlMapSession CreateSqlMapSession()
 		{
-			ISqlMapSession session = new SqlMapSession(this);
+			ISqlMapSession session = new SqlMapSession(this, _loggerFactory.CreateLogger<SqlMapSession>());
 		    session.CreateConnection();
 
             return session;
@@ -1538,7 +1091,7 @@ namespace SqlBatis.DataMapper
         /// <returns>A new session</returns>
         public ISqlMapSession CreateSqlMapSession(string connectionString)
         {
-            ISqlMapSession session = new SqlMapSession(this);
+            ISqlMapSession session = new SqlMapSession(this, _loggerFactory.CreateLogger<SqlMapSession>());
             session.CreateConnection(connectionString);
 
             return session;

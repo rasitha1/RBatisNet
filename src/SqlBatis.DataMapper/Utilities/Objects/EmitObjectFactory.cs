@@ -27,6 +27,7 @@ using System;
 using System.Collections;
 using System.Collections.Specialized;
 using System.Text;
+using Microsoft.Extensions.Logging;
 
 namespace SqlBatis.DataMapper.Utilities.Objects
 {
@@ -42,9 +43,9 @@ namespace SqlBatis.DataMapper.Utilities.Objects
         /// <summary>
         /// Initializes a new instance of the <see cref="EmitObjectFactory"/> class.
         /// </summary>
-		public EmitObjectFactory()
+		public EmitObjectFactory(ILoggerFactory loggerFactory)
 		{
-			_factoryBuilder = new FactoryBuilder();
+			_factoryBuilder = new FactoryBuilder(loggerFactory.CreateLogger<FactoryBuilder>());
 		}
 
 		#region IObjectFactory members

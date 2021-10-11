@@ -160,8 +160,8 @@ namespace SqlBatis.DataMapper.Test.NUnit.CommonTests.Utilities
         [OneTimeSetUp]
         protected virtual void SetUpFixture()
         {
-            factoryGet = new GetAccessorFactory(true);
-            factorySet = new SetAccessorFactory(true);
+            factoryGet = new GetAccessorFactory();
+            factorySet = new SetAccessorFactory();
         }
 
         /// <summary>

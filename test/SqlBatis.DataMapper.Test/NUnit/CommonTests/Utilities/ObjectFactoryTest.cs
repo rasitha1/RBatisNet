@@ -3,6 +3,7 @@ using SqlBatis.DataMapper.Test.Domain;
 using SqlBatis.DataMapper.Utilities.Objects;
 using NUnit.Framework;
 using System;
+using Microsoft.Extensions.Logging.Abstractions;
 
 
 namespace SqlBatis.DataMapper.Test.NUnit.CommonTests.Utilities
@@ -10,13 +11,17 @@ namespace SqlBatis.DataMapper.Test.NUnit.CommonTests.Utilities
 
     [TestFixture] 
 	public class ObjectFactoryTest
-	{
+    {
+        private IObjectFactory objectFactory;
+		[SetUp]
+        public void Setup()
+        {
+            objectFactory = new ObjectFactory(NullLoggerFactory.Instance, NullLogger<ObjectFactory>.Instance);
+		}
 		[Test]
         //[ExpectedException(typeof(ProbeException))]
 		public void AbstractConstructor()
 		{
-			IObjectFactory objectFactory = new ObjectFactory(true);
-
 			IFactory factory = objectFactory.CreateFactory(typeof (AbstractDocument), Type.EmptyTypes );
 
 		    Assert.That(() => factory.CreateInstance(null), Throws.TypeOf<ProbeException>());
@@ -25,8 +30,6 @@ namespace SqlBatis.DataMapper.Test.NUnit.CommonTests.Utilities
 		[Test]
 		public void DevivedClassConstructor()
 		{
-			IObjectFactory objectFactory = new ObjectFactory(true);
-
 			IFactory factory = objectFactory.CreateFactory(typeof (Book), Type.EmptyTypes );
 
 			Assert.IsNotNull(factory);
@@ -36,8 +39,6 @@ namespace SqlBatis.DataMapper.Test.NUnit.CommonTests.Utilities
 		//[ExpectedException(typeof(ProbeException))]
 		public void PrivateConstructor()
 		{
-			IObjectFactory objectFactory = new ObjectFactory(true);
-
 			Assert.That(() => objectFactory.CreateFactory(typeof(PrivateOrder), Type.EmptyTypes), Throws.TypeOf<ProbeException>());
 		}
 
@@ -45,8 +46,6 @@ namespace SqlBatis.DataMapper.Test.NUnit.CommonTests.Utilities
         //[ExpectedException(typeof(ProbeException))]
         public void NoMatchConstructor()
         {
-            IObjectFactory objectFactory = new ObjectFactory(true);
-
             Assert.That(() => objectFactory.CreateFactory(typeof(ItemBis), Type.EmptyTypes), Throws.TypeOf<ProbeException>());
         }
 
@@ -54,8 +53,6 @@ namespace SqlBatis.DataMapper.Test.NUnit.CommonTests.Utilities
 		//[ExpectedException(typeof(ProbeException))]
 		public void ProtectedConstructor()
 		{
-			IObjectFactory objectFactory = new ObjectFactory(true);
-
 		    Assert.That(() => objectFactory.CreateFactory(typeof(ProtectedItem), Type.EmptyTypes), Throws.TypeOf<ProbeException>());
 
 		}
@@ -63,8 +60,6 @@ namespace SqlBatis.DataMapper.Test.NUnit.CommonTests.Utilities
 		[Test]
 		public void ClassWithMultipleConstructor()
 		{
-			IObjectFactory objectFactory = new ObjectFactory(true);
-
 			Type[] types = {typeof(string)};
 			IFactory factory0 = objectFactory.CreateFactory(typeof (Account), types );
 
@@ -85,8 +80,6 @@ namespace SqlBatis.DataMapper.Test.NUnit.CommonTests.Utilities
 		[Test]
 		public void StringConstructor()
 		{
-			IObjectFactory objectFactory = new ObjectFactory(true);
-
 			Type[] types = {typeof(string)};
 			IFactory factory = objectFactory.CreateFactory(typeof (Account), types );
 
@@ -101,8 +94,6 @@ namespace SqlBatis.DataMapper.Test.NUnit.CommonTests.Utilities
 		[Test]
 		public void MultipleParamConstructor1()
 		{
-			IObjectFactory objectFactory = new ObjectFactory(true);
-
 			Type[] types = {typeof(string)};
 			IFactory factory = objectFactory.CreateFactory(typeof (Account), types );
 
@@ -118,8 +109,6 @@ namespace SqlBatis.DataMapper.Test.NUnit.CommonTests.Utilities
 		[Test]
 		public void IntConstructor()
 		{
-			IObjectFactory objectFactory = new ObjectFactory(true);
-
 			Type[] types = {typeof(int)};
 			IFactory factory = objectFactory.CreateFactory(typeof (Account), types );
 
@@ -135,8 +124,6 @@ namespace SqlBatis.DataMapper.Test.NUnit.CommonTests.Utilities
 		[Test]
 		public void EnumConstructorEnum()
 		{
-			IObjectFactory objectFactory = new ObjectFactory(true);
-
 			Type[] types = {typeof(Days)};
 			IFactory factory = objectFactory.CreateFactory(typeof (Account), types );
 
@@ -152,8 +139,6 @@ namespace SqlBatis.DataMapper.Test.NUnit.CommonTests.Utilities
 		[Test]
 		public void ClassConstructor()
 		{
-			IObjectFactory objectFactory = new ObjectFactory(true);
-
 			Type[] types = {typeof(Property)};
 			IFactory factory = objectFactory.CreateFactory(typeof (Account), types );
 
@@ -172,8 +157,6 @@ namespace SqlBatis.DataMapper.Test.NUnit.CommonTests.Utilities
 		[Test]
 		public void DateTimeConstructor()
 		{
-			IObjectFactory objectFactory = new ObjectFactory(true);
-
 			Type[] types = {typeof(DateTime)};
 			IFactory factory = objectFactory.CreateFactory(typeof (Account), types );
 
@@ -190,8 +173,6 @@ namespace SqlBatis.DataMapper.Test.NUnit.CommonTests.Utilities
         [Test]
         public void ArrayParamConstructor()
         {
-            IObjectFactory objectFactory = new ObjectFactory(true);
-
             Type[] types = { typeof(int[]) };
             IFactory factory = objectFactory.CreateFactory(typeof(Account), types);
 
@@ -215,8 +196,6 @@ namespace SqlBatis.DataMapper.Test.NUnit.CommonTests.Utilities
 		[Test]
 		public void MultipleParamConstructor0()
 		{
-			IObjectFactory objectFactory = new ObjectFactory(true);
-
 			Type[] types = {typeof(string), typeof(Property)};
 			IFactory factory = objectFactory.CreateFactory(typeof (Account), types );
 
@@ -239,8 +218,6 @@ namespace SqlBatis.DataMapper.Test.NUnit.CommonTests.Utilities
 		[Test]
 		public void DynamicFactoryCreatesTypes()
 		{
-			IObjectFactory objectFactory = new ObjectFactory(true);
-
 			IFactory factory = objectFactory.CreateFactory(typeof (Account), Type.EmptyTypes);
 			object obj = factory.CreateInstance(null);
 			Assert.IsTrue(obj is Account);
@@ -280,27 +257,8 @@ namespace SqlBatis.DataMapper.Test.NUnit.CommonTests.Utilities
 			double newFactoryResult = 1000000 * (timer.Duration / (double)TEST_ITERATIONS);
 			#endregion
 
-			#region activator
-			factory = new ActivatorObjectFactory().CreateFactory(typeof(Account), Type.EmptyTypes);
-
-			// create an instance so that Activators can
-			// cache the type/constructor/whatever
-			factory.CreateInstance(Type.EmptyTypes);
-
-			GC.Collect();
-			GC.WaitForPendingFinalizers();
-
-			timer.Start();
-			for (int i = 0; i < TEST_ITERATIONS; i++)
-			{
-				factory.CreateInstance(Type.EmptyTypes);
-			}
-			timer.Stop();
-			double activatorFactoryResult = 1000000 * (timer.Duration / (double)TEST_ITERATIONS);
-			#endregion
-
-			#region Emit
-			factory = new EmitObjectFactory().CreateFactory(typeof(Account), Type.EmptyTypes);
+            #region Emit
+			factory = new EmitObjectFactory(NullLoggerFactory.Instance).CreateFactory(typeof(Account), Type.EmptyTypes);
 
 			// create an instance so that Activators can
 			// cache the type/constructor/whatever
@@ -322,7 +280,6 @@ namespace SqlBatis.DataMapper.Test.NUnit.CommonTests.Utilities
 			Console.WriteLine(
 				"Create " + TEST_ITERATIONS.ToString() + " objects via factory :"
 				+ "\nNew : \t\t\t" + newFactoryResult.ToString("F3")
-				+ "\nActivator : \t\t" + activatorFactoryResult.ToString("F3")+ " Ratio : " + ((activatorFactoryResult / newFactoryResult)).ToString("F3")
 				+ "\nEmit IL : \t\t\t" + emitFactoryResult.ToString("F3") + " Ratio : " + ((emitFactoryResult / newFactoryResult)).ToString("F3"));
 		}
 

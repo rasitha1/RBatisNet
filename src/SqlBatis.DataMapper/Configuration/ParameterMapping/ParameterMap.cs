@@ -24,7 +24,6 @@
  ********************************************************************************/
 #endregion
 
-#region Using
 
 using System;
 using System.Collections;
@@ -32,13 +31,11 @@ using System.Data;
 using System.Reflection;
 using System.Xml;
 using System.Xml.Serialization;
-using SqlBatis.DataMapper.Logging;
 using SqlBatis.DataMapper.Configuration.Serializers;
 using SqlBatis.DataMapper.DataExchange;
 using SqlBatis.DataMapper.Scope;
 using SqlBatis.DataMapper.TypeHandlers;
 
-#endregion
 
 namespace SqlBatis.DataMapper.Configuration.ParameterMapping
 {
@@ -54,18 +51,12 @@ namespace SqlBatis.DataMapper.Configuration.ParameterMapping
 		/// </summary>
 		private const string XML_PARAMATER = "parameter";
 
-		#region private
-		private static readonly ILog Logger = LogManager.GetLogger( MethodBase.GetCurrentMethod().DeclaringType );
-		
-		[NonSerialized]
+        [NonSerialized]
 		private string _id = string.Empty;
 		[NonSerialized]
-		// Properties list
 		private ParameterPropertyCollection _properties = new ParameterPropertyCollection();
-		// Same list as _properties but without doubled (Test UpdateAccountViaParameterMap2)
 		[NonSerialized]
 		private ParameterPropertyCollection _propertiesList = new ParameterPropertyCollection();
-		//(property Name, property)
 		[NonSerialized]
 		private Hashtable _propertiesMap = new Hashtable(); // Corrected ?? Support Request 1043181, move to HashTable
 		[NonSerialized]
@@ -80,9 +71,7 @@ namespace SqlBatis.DataMapper.Configuration.ParameterMapping
 		private DataExchangeFactory _dataExchangeFactory = null;
 		[NonSerialized]
 		private IDataExchange _dataExchange = null;
-		#endregion
 
-		#region Properties
 		/// <summary>
 		/// The parameter class name.
 		/// </summary>
@@ -90,19 +79,7 @@ namespace SqlBatis.DataMapper.Configuration.ParameterMapping
 		public string ClassName
 		{
 			get { return _className; }
-			set 
-			{ 
-				if (Logger.IsInfoEnabled)
-				{
-					if ((value == null) || (value.Length < 1))
-					{
-						Logger.Info("The class attribute is recommended for better performance in a ParameterMap tag '"+_id+"'.");
-					}					
-				}
-
-
-				_className = value; 
-			}
+			set { _className = value; }
 		}
 
 		/// <summary>
@@ -125,7 +102,7 @@ namespace SqlBatis.DataMapper.Configuration.ParameterMapping
 			set
 			{ 
 				if ((value == null) || (value.Length < 1))
-					throw new ArgumentNullException("The id attribute is mandatory in a ParameterMap tag.");
+					throw new ArgumentNullException(nameof(value), "The id attribute is mandatory in a ParameterMap tag.");
 
 				_id = value;
 			}
@@ -136,21 +113,15 @@ namespace SqlBatis.DataMapper.Configuration.ParameterMapping
 		/// The collection of ParameterProperty
 		/// </summary>
 		[XmlIgnore]
-		public ParameterPropertyCollection Properties
-		{
-			get { return _properties; }
-		}
+		public ParameterPropertyCollection Properties => _properties;
 
-		/// <summary>
+        /// <summary>
 		/// 
 		/// </summary>
 		[XmlIgnore]
-		public ParameterPropertyCollection PropertiesList
-		{
-			get { return _propertiesList; }
-		}
+		public ParameterPropertyCollection PropertiesList => _propertiesList;
 
-		/// <summary>
+        /// <summary>
 		/// Extend Parametermap attribute
 		/// </summary>
 		/// <remarks>The id of a ParameterMap</remarks>
@@ -167,11 +138,9 @@ namespace SqlBatis.DataMapper.Configuration.ParameterMapping
 		[XmlIgnore]
 		public IDataExchange DataExchange
 		{
-			set { _dataExchange = value; }
-		}
-		#endregion
+			set => _dataExchange = value;
+        }
 
-		#region Constructor (s) / Destructor
 		
 		/// <summary>
 		/// Do not use direclty, only for serialization.
@@ -182,9 +151,6 @@ namespace SqlBatis.DataMapper.Configuration.ParameterMapping
 			_dataExchangeFactory = dataExchangeFactory;
 		}
 
-		#endregion
-
-		#region Methods
 		/// <summary>
 		/// Get the ParameterProperty at index.
 		/// </summary>
@@ -315,7 +281,6 @@ namespace SqlBatis.DataMapper.Configuration.ParameterMapping
 			_dataExchange.SetData(ref target, mapping, dataBaseValue);
 		}
 
-		#region Configuration
 
 		/// <summary>
 		/// Initialize the parameter properties child.
@@ -356,9 +321,5 @@ namespace SqlBatis.DataMapper.Configuration.ParameterMapping
             }
 		}
 
-		#endregion
-
-		#endregion
-
-	}
+    }
 }

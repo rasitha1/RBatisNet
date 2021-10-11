@@ -27,7 +27,6 @@
 
 using System;
 using Castle.DynamicProxy;
-using SqlBatis.DataMapper.Logging;
 
 namespace IBatisNet.DynamicProxy
 {
@@ -36,8 +35,6 @@ namespace IBatisNet.DynamicProxy
     /// </summary>
     public sealed class ProxyGeneratorFactory
     {
-        private static readonly ILog log = LogManager.GetLogger(typeof(ProxyGeneratorFactory));
-
         private static readonly ProxyGenerator _generator = new CachedProxyGenerator();
 
         private ProxyGeneratorFactory()

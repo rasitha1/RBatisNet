@@ -26,7 +26,7 @@
 
 using System;
 using System.Collections;
-
+using Microsoft.Extensions.Logging;
 using SqlBatis.DataMapper.Pagination;
 using SqlBatis.DataMapper.Exceptions;
 
@@ -41,7 +41,8 @@ namespace SqlBatis.DataMapper.MappedStatements
 		#region Fields
 		
 		private int _pageSize = 0;
-		private int _index = 0;
+        private readonly ILoggerFactory _loggerFactory;
+        private int _index = 0;
 
 		private IList _prevPageList = null;
 		private IList _currentPageList = null;
@@ -58,12 +59,13 @@ namespace SqlBatis.DataMapper.MappedStatements
 		/// <param name="mappedStatement"></param>
 		/// <param name="parameterObject"></param>
 		/// <param name="pageSize"></param>
-		public PaginatedList(IMappedStatement mappedStatement, object parameterObject, int pageSize)
+		public PaginatedList(IMappedStatement mappedStatement, object parameterObject, int pageSize, ILoggerFactory loggerFactory)
 		{
 			_mappedStatement = mappedStatement;
 			_parameterObject = parameterObject;
 			_pageSize = pageSize;
-			_index = 0;
+            _loggerFactory = loggerFactory;
+            _index = 0;
 			PageTo(0);
 		}
 
@@ -205,7 +207,7 @@ namespace SqlBatis.DataMapper.MappedStatements
 
 			if (session == null) 
 			{
-				session = new SqlMapSession(_mappedStatement.SqlMap);
+				session = new SqlMapSession(_mappedStatement.SqlMap, _loggerFactory.CreateLogger<SqlMapSession>());
 				session.OpenConnection();
 				isSessionLocal = true;
 			}

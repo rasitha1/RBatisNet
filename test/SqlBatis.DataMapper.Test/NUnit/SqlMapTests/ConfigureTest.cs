@@ -10,6 +10,12 @@ using SqlBatis.DataMapper.SessionStore;
 using SqlBatis.DataMapper.Test.Domain;
 using NUnit.Framework;
 using System.Collections.Specialized;
+using Microsoft.Extensions.Logging.Abstractions;
+using SqlBatis.DataMapper.Commands;
+using SqlBatis.DataMapper.Configuration.ParameterMapping;
+using SqlBatis.DataMapper.Configuration.Serializers;
+using SqlBatis.DataMapper.MappedStatements.ResultStrategy;
+using SqlBatis.DataMapper.Scope;
 
 namespace SqlBatis.DataMapper.Test.NUnit.SqlMapTests
 {
@@ -20,7 +26,7 @@ namespace SqlBatis.DataMapper.Test.NUnit.SqlMapTests
 	public class ConfigureTest : BaseTest 
 	{
 		private string _fileName = string.Empty;
-
+        private DomSqlMapBuilder builder;
 		#region SetUp
 
 		/// <summary>
@@ -31,13 +37,20 @@ namespace SqlBatis.DataMapper.Test.NUnit.SqlMapTests
 		{
             _fileName = "sqlmap" + "_" + Configuration["database"] + "_" + Configuration["providerType"] + ".config";
 
-        }
-        #endregion
+            var scope = new ConfigurationScope();
+            var resultsStrategy = new ResultClassStrategy(NullLogger<ResultClassStrategy>.Instance);
 
-        /// <summary>
-        /// Test AsyncLocalSessionStore
-        /// </summary>
-        [Test]
+            builder = new DomSqlMapBuilder(NullLogger<DomSqlMapBuilder>.Instance, NullLoggerFactory.Instance,
+                scope, new InlineParameterMapParser(), new PreparedCommandFactory(NullLoggerFactory.Instance), new ResultStrategyFactory(resultsStrategy));
+
+
+		}
+		#endregion
+
+		/// <summary>
+		/// Test AsyncLocalSessionStore
+		/// </summary>
+		[Test]
         public void AsyncLocalSessionStoreTest()
 	    {
             sqlMap.SessionStore = new AsyncLocalSessionStore(sqlMap.Id);
@@ -55,9 +68,8 @@ namespace SqlBatis.DataMapper.Test.NUnit.SqlMapTests
 		[Test] 
 		public void TestConfigureRelativePath()
 		{
-			DomSqlMapBuilder builder = new DomSqlMapBuilder();
 
-            NameValueCollection properties = new NameValueCollection();
+			NameValueCollection properties = new NameValueCollection();
             properties.Add("collection2Namespace", "SqlBatis.DataMapper.Test.Domain.LineItemCollection, SqlBatis.DataMapper.Test");
             properties.Add("nullableInt", "int");
 		    ChildSetupProperties(properties);
@@ -74,10 +86,6 @@ namespace SqlBatis.DataMapper.Test.NUnit.SqlMapTests
 		[Test] 
 		public void TestConfigureAndWatchRelativePath()
 		{
-			ConfigureHandler handler = new ConfigureHandler(Configure);
-
-
-			DomSqlMapBuilder builder = new DomSqlMapBuilder();
 
             NameValueCollection properties = new NameValueCollection();
             properties.Add("collection2Namespace", "SqlBatis.DataMapper.Test.Domain.LineItemCollection, SqlBatis.DataMapper.Test");
@@ -85,7 +93,7 @@ namespace SqlBatis.DataMapper.Test.NUnit.SqlMapTests
 		    ChildSetupProperties(properties);
             builder.Properties = properties;
 
-            ISqlMapper mapper = builder.ConfigureAndWatch(_fileName, handler);
+            ISqlMapper mapper = builder.Configure(_fileName);
 
 			Assert.IsNotNull(mapper);
 		}
@@ -96,8 +104,6 @@ namespace SqlBatis.DataMapper.Test.NUnit.SqlMapTests
 		[Test] 
 		public void TestConfigureRelativePathViaBuilder()
 		{
-			DomSqlMapBuilder builder = new DomSqlMapBuilder();
-
             NameValueCollection properties = new NameValueCollection();
             properties.Add("collection2Namespace", "SqlBatis.DataMapper.Test.Domain.LineItemCollection, SqlBatis.DataMapper.Test");
             properties.Add("nullableInt", "int");
@@ -115,17 +121,13 @@ namespace SqlBatis.DataMapper.Test.NUnit.SqlMapTests
 		[Test] 
 		public void TestConfigureAndWatchRelativePathViaBuilder()
 		{
-			ConfigureHandler handler = new ConfigureHandler(Configure);
-
-			DomSqlMapBuilder builder = new DomSqlMapBuilder();
-
             NameValueCollection properties = new NameValueCollection();
             properties.Add("collection2Namespace", "SqlBatis.DataMapper.Test.Domain.LineItemCollection, SqlBatis.DataMapper.Test");
             properties.Add("nullableInt", "int");
 		    ChildSetupProperties(properties);
             builder.Properties = properties;
 
-            ISqlMapper mapper = builder.ConfigureAndWatch(_fileName, handler);
+            ISqlMapper mapper = builder.Configure(_fileName);
 
 			Assert.IsNotNull(mapper);
 		}
@@ -140,8 +142,6 @@ namespace SqlBatis.DataMapper.Test.NUnit.SqlMapTests
 		public void TestConfigureAbsolutePath()
 		{
 			_fileName = Resources.BaseDirectory+Path.DirectorySeparatorChar+_fileName;
-
-			DomSqlMapBuilder builder = new DomSqlMapBuilder();
 
             NameValueCollection properties = new NameValueCollection();
             properties.Add("collection2Namespace", "SqlBatis.DataMapper.Test.Domain.LineItemCollection, SqlBatis.DataMapper.Test");
@@ -162,8 +162,6 @@ namespace SqlBatis.DataMapper.Test.NUnit.SqlMapTests
 		{
 			_fileName = Resources.BaseDirectory+Path.DirectorySeparatorChar+_fileName;
 
-			DomSqlMapBuilder builder = new DomSqlMapBuilder();
-
             NameValueCollection properties = new NameValueCollection();
             properties.Add("collection2Namespace", "SqlBatis.DataMapper.Test.Domain.LineItemCollection, SqlBatis.DataMapper.Test");
             properties.Add("nullableInt", "int");
@@ -183,8 +181,6 @@ namespace SqlBatis.DataMapper.Test.NUnit.SqlMapTests
 		{
 			_fileName = "file://"+Resources.BaseDirectory+Path.DirectorySeparatorChar+_fileName;
 
-			DomSqlMapBuilder builder = new DomSqlMapBuilder();
-
             NameValueCollection properties = new NameValueCollection();
             properties.Add("collection2Namespace", "SqlBatis.DataMapper.Test.Domain.LineItemCollection, SqlBatis.DataMapper.Test");
             properties.Add("nullableInt", "int");
@@ -203,8 +199,6 @@ namespace SqlBatis.DataMapper.Test.NUnit.SqlMapTests
 		public void TestConfigureAbsolutePathWithFileSuffixViaBuilder()
 		{
 			_fileName = "file://"+Resources.BaseDirectory+Path.DirectorySeparatorChar+_fileName;
-
-			DomSqlMapBuilder builder = new DomSqlMapBuilder();
 
             NameValueCollection properties = new NameValueCollection();
             properties.Add("collection2Namespace", "SqlBatis.DataMapper.Test.Domain.LineItemCollection, SqlBatis.DataMapper.Test");
@@ -226,8 +220,6 @@ namespace SqlBatis.DataMapper.Test.NUnit.SqlMapTests
 			_fileName = Resources.BaseDirectory+Path.DirectorySeparatorChar+_fileName;
 			FileInfo fileInfo = new FileInfo(_fileName);
 
-			DomSqlMapBuilder builder = new DomSqlMapBuilder();
-
             NameValueCollection properties = new NameValueCollection();
             properties.Add("collection2Namespace", "SqlBatis.DataMapper.Test.Domain.LineItemCollection, SqlBatis.DataMapper.Test");
             properties.Add("nullableInt", "int");
@@ -248,8 +240,6 @@ namespace SqlBatis.DataMapper.Test.NUnit.SqlMapTests
 			_fileName = Resources.BaseDirectory+Path.DirectorySeparatorChar+_fileName;
 			Uri uri = new Uri(_fileName);
 
-			DomSqlMapBuilder builder = new DomSqlMapBuilder();
-
             NameValueCollection properties = new NameValueCollection();
             properties.Add("collection2Namespace", "SqlBatis.DataMapper.Test.Domain.LineItemCollection, SqlBatis.DataMapper.Test");
             properties.Add("nullableInt", "int");
@@ -268,17 +258,13 @@ namespace SqlBatis.DataMapper.Test.NUnit.SqlMapTests
 		public void TestConfigureAndWatchAbsolutePath()
 		{
 			_fileName = Resources.BaseDirectory+Path.DirectorySeparatorChar+_fileName;
-			ConfigureHandler handler = new ConfigureHandler(Configure);
-
-			DomSqlMapBuilder builder = new DomSqlMapBuilder();
-
             NameValueCollection properties = new NameValueCollection();
             properties.Add("collection2Namespace", "SqlBatis.DataMapper.Test.Domain.LineItemCollection, SqlBatis.DataMapper.Test");
             properties.Add("nullableInt", "int");
 		    ChildSetupProperties(properties);
             builder.Properties = properties;
 
-            ISqlMapper mapper = builder.ConfigureAndWatch(_fileName, handler);
+            ISqlMapper mapper = builder.Configure(_fileName);
 
 			Assert.IsNotNull(mapper);
 		}
@@ -290,9 +276,6 @@ namespace SqlBatis.DataMapper.Test.NUnit.SqlMapTests
 		public void TestConfigureAndWatchAbsolutePathViaBuilder()
 		{
 			_fileName = Resources.BaseDirectory+Path.DirectorySeparatorChar+_fileName;
-			ConfigureHandler handler = new ConfigureHandler(Configure);
-
-			DomSqlMapBuilder builder = new DomSqlMapBuilder();
 
             NameValueCollection properties = new NameValueCollection();
             properties.Add("collection2Namespace", "SqlBatis.DataMapper.Test.Domain.LineItemCollection, SqlBatis.DataMapper.Test");
@@ -300,7 +283,7 @@ namespace SqlBatis.DataMapper.Test.NUnit.SqlMapTests
 		    ChildSetupProperties(properties);
             builder.Properties = properties;
 
-            ISqlMapper mapper = builder.ConfigureAndWatch(_fileName, handler);
+            ISqlMapper mapper = builder.Configure(_fileName);
 
 			Assert.IsNotNull(mapper);
 		}
@@ -312,17 +295,13 @@ namespace SqlBatis.DataMapper.Test.NUnit.SqlMapTests
 		public void TestConfigureAndWatchAbsolutePathWithFileSuffix()
 		{
 			_fileName = "file://"+Resources.BaseDirectory+Path.DirectorySeparatorChar+_fileName;
-			ConfigureHandler handler = new ConfigureHandler(Configure);
-
-			DomSqlMapBuilder builder = new DomSqlMapBuilder();
-
             NameValueCollection properties = new NameValueCollection();
             properties.Add("collection2Namespace", "SqlBatis.DataMapper.Test.Domain.LineItemCollection, SqlBatis.DataMapper.Test");
             properties.Add("nullableInt", "int");
 		    ChildSetupProperties(properties);
             builder.Properties = properties;
 
-            ISqlMapper mapper = builder.ConfigureAndWatch(_fileName, handler);
+            ISqlMapper mapper = builder.Configure(_fileName);
 
 			Assert.IsNotNull(mapper);
 		}
@@ -334,9 +313,6 @@ namespace SqlBatis.DataMapper.Test.NUnit.SqlMapTests
 		public void TestConfigureAndWatchAbsolutePathWithFileSuffixViaBuilder()
 		{
 			_fileName = "file://"+Resources.BaseDirectory+Path.DirectorySeparatorChar+_fileName;
-			ConfigureHandler handler = new ConfigureHandler(Configure);
-
-			DomSqlMapBuilder builder = new DomSqlMapBuilder();
 
             NameValueCollection properties = new NameValueCollection();
             properties.Add("collection2Namespace", "SqlBatis.DataMapper.Test.Domain.LineItemCollection, SqlBatis.DataMapper.Test");
@@ -344,7 +320,7 @@ namespace SqlBatis.DataMapper.Test.NUnit.SqlMapTests
 		    ChildSetupProperties(properties);
             builder.Properties = properties;
 
-            ISqlMapper mapper = builder.ConfigureAndWatch(_fileName, handler);
+            ISqlMapper mapper = builder.Configure(_fileName);
 
 			Assert.IsNotNull(mapper);
 		}
@@ -358,17 +334,13 @@ namespace SqlBatis.DataMapper.Test.NUnit.SqlMapTests
 			_fileName = Resources.BaseDirectory+Path.DirectorySeparatorChar+_fileName;
 			FileInfo fileInfo = new FileInfo(_fileName);
 
-			ConfigureHandler handler = new ConfigureHandler(Configure);
-
-			DomSqlMapBuilder builder = new DomSqlMapBuilder();
-
             NameValueCollection properties = new NameValueCollection();
             properties.Add("collection2Namespace", "SqlBatis.DataMapper.Test.Domain.LineItemCollection, SqlBatis.DataMapper.Test");
             properties.Add("nullableInt", "int");
 		    ChildSetupProperties(properties);
             builder.Properties = properties;
 
-            ISqlMapper mapper = builder.ConfigureAndWatch(fileInfo, handler);
+            ISqlMapper mapper = builder.Configure(fileInfo);
 
 			Assert.IsNotNull(mapper);
 		}
@@ -387,8 +359,6 @@ namespace SqlBatis.DataMapper.Test.NUnit.SqlMapTests
             Assembly assembly = Assembly.Load("SqlBatis.DataMapper.Test");
 			Stream stream = assembly.GetManifestResourceStream("SqlBatis.DataMapper.Test.SqlMap_MSSQL_SqlClient.config");
 
-			DomSqlMapBuilder builder = new DomSqlMapBuilder();
-
             NameValueCollection properties = new NameValueCollection();
             properties.Add("collection2Namespace", "SqlBatis.DataMapper.Test.Domain.LineItemCollection, SqlBatis.DataMapper.Test");
             properties.Add("nullableInt", "int");
@@ -400,96 +370,6 @@ namespace SqlBatis.DataMapper.Test.NUnit.SqlMapTests
 			Assert.IsNotNull(mapper);
 		}
 		#endregion 
-
-
-        private bool _hasChanged = false;
-
-        /// <summary>
-        /// ConfigurationWatcher Test
-        /// </summary>
-        [Test]
-        public void ConfigurationWatcherTestOnSqlMapConfig()
-        {
-            //string fileName = @"..\..\Maps\MSSQL\SqlClient\Account.xml";
-
-   			ConfigureHandler handler = new ConfigureHandler(MyHandler);
-
-            DomSqlMapBuilder builder = new DomSqlMapBuilder();
-
-            NameValueCollection properties = new NameValueCollection();
-            properties.Add("collection2Namespace", "SqlBatis.DataMapper.Test.Domain.LineItemCollection, SqlBatis.DataMapper.Test");
-            properties.Add("nullableInt", "int");
-            ChildSetupProperties(properties);
-            builder.Properties = properties;
-
-            ISqlMapper mapper = builder.ConfigureAndWatch(_fileName, handler);
-
-            // test that the mapper was correct build
-            Assert.IsNotNull(mapper);
-
-            FileInfo fi = Resources.GetFileInfo(_fileName);
-            fi.LastWriteTime = DateTime.Now;
-
-            fi.Refresh();
-
-            // Let's give a small bit of time for the change to propagate.
-            // The ConfigWatcherHandler class has a timer which 
-            // waits for 500 Millis before delivering
-            // the event notification.
-            System.Threading.Thread.Sleep(600);
-
-            Assert.IsTrue(_hasChanged);
-            
-            _hasChanged = false;
-            
-        }
-
-        /// <summary>
-        /// ConfigurationWatcher Test
-        /// </summary>
-        [Test]
-        public void ConfigurationWatcherTestOnMappingFile()
-        {
-            string fileName = @"..\..\..\Maps\MSSQL\SqlClient\Account.xml";
-
-            ConfigureHandler handler = new ConfigureHandler(MyHandler);
-
-            DomSqlMapBuilder builder = new DomSqlMapBuilder();
-
-            NameValueCollection properties = new NameValueCollection();
-            properties.Add("collection2Namespace", "SqlBatis.DataMapper.Test.Domain.LineItemCollection, SqlBatis.DataMapper.Test");
-            properties.Add("nullableInt", "int");
-            
-            ChildSetupProperties(properties);
-
-            builder.Properties = properties;
-
-            ISqlMapper mapper = builder.ConfigureAndWatch(_fileName, handler);
-
-            // test that the mapper was correct build
-            Assert.IsNotNull(mapper);
-
-            FileInfo fi = Resources.GetFileInfo(fileName);
-            fi.LastWriteTime = DateTime.Now;
-
-            fi.Refresh();
-
-            // Let's give a small bit of time for the change to propagate.
-            // The ConfigWatcherHandler class has a timer which 
-            // waits for 500 Millis before delivering
-            // the event notification.
-            System.Threading.Thread.Sleep(600);
-
-            Assert.IsTrue(_hasChanged);
-
-            _hasChanged = false;
-
-        }
-
-        protected void MyHandler(object obj)
-        {
-            _hasChanged = true;
-        }
 
 	}
 }

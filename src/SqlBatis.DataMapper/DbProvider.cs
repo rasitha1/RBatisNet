@@ -45,13 +45,8 @@ namespace SqlBatis.DataMapper
     [XmlRoot("provider", Namespace = "http://ibatis.apache.org/providers")]
     public class DbProvider : IDbProvider
     {
-        private const string SQLPARAMETER = "?";
+        private const string SqlParameter = "?";
 
-        #region Constructor (s) / Destructor
-
-        #endregion
-
-        #region Fields
 
         [NonSerialized] private string _assemblyName = string.Empty;
 
@@ -103,14 +98,10 @@ namespace SqlBatis.DataMapper
 
         [NonSerialized] private bool _useDeriveParameters = true;
 
-        [NonSerialized] private bool _allowMARS;
+        [NonSerialized] private bool _allowMars;
 
 
 //		private static readonly ILog _connectionLogger = LogManager.GetLogger("System.Data.IDbConnection");
-
-        #endregion
-
-        #region Properties
 
         /// <summary>
         ///     The name of the assembly which conatins the definition of the provider.
@@ -165,8 +156,8 @@ namespace SqlBatis.DataMapper
         [XmlAttribute("allowMARS")]
         public bool AllowMARS
         {
-            get => _allowMARS;
-            set => _allowMARS = value;
+            get => _allowMars;
+            set => _allowMars = value;
         }
 
         /// <summary>
@@ -424,7 +415,7 @@ namespace SqlBatis.DataMapper
         ///     Check if this provider is Odbc ?
         /// </summary>
         [XmlIgnore]
-        public bool IsObdc => (_connectionClass.IndexOf(".Odbc.") > 0);
+        public bool IsObdc => (_connectionClass.IndexOf(".Odbc.", StringComparison.Ordinal) > 0);
 
         /// <summary>
         ///     Get the CommandBuilder Type for this provider.
@@ -439,31 +430,27 @@ namespace SqlBatis.DataMapper
         [XmlIgnore]
         public Type ParameterDbType => _parameterDbType;
 
-        #endregion
-
-        #region Methods
 
         /// <summary>
         ///     Init the provider.
         /// </summary>
         public void Initialize()
         {
-            Assembly assembly = null;
-            Type type = null;
-
             try
             {
-                assembly = Assembly.Load(_assemblyName);
+                var assembly = Assembly.Load(_assemblyName);
 
                 // Build the DataAdapter template 
-                type = assembly.GetType(_dataAdapterClass, true);
+                var type = assembly.GetType(_dataAdapterClass, true);
                 CheckPropertyType("DataAdapterClass", typeof(IDbDataAdapter), type);
-                _templateDataAdapter = (IDbDataAdapter) type.GetConstructor(Type.EmptyTypes).Invoke(null);
+                // ReSharper disable once PossibleNullReferenceException
+                _templateDataAdapter = (IDbDataAdapter) type.GetConstructor(Type.EmptyTypes)?.Invoke(null);
 
                 // Build the connection template 
                 type = assembly.GetType(_connectionClass, true);
                 CheckPropertyType("DbConnectionClass", typeof(IDbConnection), type);
-                _templateConnection = (IDbConnection) type.GetConstructor(Type.EmptyTypes).Invoke(null);
+                // ReSharper disable once PossibleNullReferenceException
+                _templateConnection = (IDbConnection) type.GetConstructor(Type.EmptyTypes)?.Invoke(null);
 
                 // Get the CommandBuilder Type
                 _commandBuilderType = assembly.GetType(_commandBuilderClass, true);
@@ -478,9 +465,7 @@ namespace SqlBatis.DataMapper
             catch (Exception e)
             {
                 throw new ConfigurationException(
-                    string.Format(
-                        "Could not configure providers. Unable to load provider named \"{0}\" not found, failed. Cause: {1}",
-                        _name, e.Message), e
+                    $"Could not configure providers. Unable to load provider named \"{_name}\" not found, failed. Cause: {e.Message}", e
                 );
             }
         }
@@ -492,14 +477,6 @@ namespace SqlBatis.DataMapper
         /// <returns>An 'IDbConnection' object.</returns>
         public virtual IDbConnection CreateConnection()
         {
-            // Cannot do that because on 
-            // IDbCommand.Connection = cmdConnection
-            // .NET cast the cmdConnection to the real type (as SqlConnection)
-            // and we pass a proxy --> exception invalid cast !
-//			if (_connectionLogger.IsDebugEnabled)
-//			{
-//				connection = (IDbConnection)IDbConnectionProxy.NewInstance(connection, this);
-//			}
             if (_templateConnectionIsICloneable)
                 return (IDbConnection) ((ICloneable) _templateConnection).Clone();
             return (IDbConnection) Activator.CreateInstance(_templateConnection.GetType());
@@ -544,7 +521,7 @@ namespace SqlBatis.DataMapper
         /// <returns>A parameter formatted for an IDbCommand.CommandText</returns>
         public virtual string FormatNameForSql(string parameterName)
         {
-            return _useParameterPrefixInSql ? (_parameterPrefix + parameterName) : SQLPARAMETER;
+            return _useParameterPrefixInSql ? (_parameterPrefix + parameterName) : SqlParameter;
         }
 
         /// <summary>
@@ -562,18 +539,17 @@ namespace SqlBatis.DataMapper
         }
 
         /// <summary>
-        ///     Equals implemantation.
+        ///     Equals implementation.
         /// </summary>
         /// <param name="obj">The test object.</param>
         /// <returns>A boolean.</returns>
         public override bool Equals(object obj)
         {
-            if ((obj != null) && (obj is IDbProvider))
+            if (obj is IDbProvider other)
             {
-                IDbProvider that = (IDbProvider) obj;
-                return ((_name == that.Name) &&
-                        (_assemblyName == that.AssemblyName) &&
-                        (_connectionClass == that.DbConnectionClass));
+                return ((_name == other.Name) &&
+                        (_assemblyName == other.AssemblyName) &&
+                        (_connectionClass == other.DbConnectionClass));
             }
 
             return false;
@@ -600,22 +576,17 @@ namespace SqlBatis.DataMapper
         private void CheckPropertyString(string propertyName, string value)
         {
             if (value == null || value.Trim().Length == 0)
-                throw new ArgumentException(
-                    "The " + propertyName + " property cannot be " +
-                    "set to a null or empty string value.", propertyName);
+                throw new ArgumentException($"The {propertyName} property cannot be set to a null or empty string value.", propertyName);
         }
 
         private void CheckPropertyType(string propertyName, Type expectedType, Type value)
         {
             if (value == null)
                 throw new ArgumentNullException(
-                    propertyName, "The " + propertyName + " property cannot be null.");
+                    propertyName, $"The {propertyName} property cannot be null.");
             if (!expectedType.IsAssignableFrom(value))
                 throw new ArgumentException(
-                    "The Type passed to the " + propertyName + " property must be an " + expectedType.Name +
-                    " implementation.");
+                    $"The Type passed to the {propertyName} property must be an {expectedType.Name} implementation.");
         }
-
-        #endregion
     }
 }

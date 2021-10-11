@@ -35,9 +35,9 @@ using System.Reflection;
 using System.Threading;
 using System.Xml;
 using System.Xml.Schema;
-using SqlBatis.DataMapper;
+using Microsoft.Extensions.Logging;
+using SqlBatis.DataMapper.Commands;
 using SqlBatis.DataMapper.Exceptions;
-using SqlBatis.DataMapper.Logging;
 using SqlBatis.DataMapper.Utilities;
 using SqlBatis.DataMapper.Utilities.Objects;
 using SqlBatis.DataMapper.Utilities.Objects.Members;
@@ -55,7 +55,9 @@ using SqlBatis.DataMapper.Configuration.Statements;
 using SqlBatis.DataMapper.MappedStatements;
 using SqlBatis.DataMapper.MappedStatements.ArgumentStrategy;
 using SqlBatis.DataMapper.MappedStatements.PropertyStrategy;
+using SqlBatis.DataMapper.MappedStatements.ResultStrategy;
 using SqlBatis.DataMapper.Scope;
+using SqlBatis.DataMapper.SessionStore;
 using SqlBatis.DataMapper.TypeHandlers;
 
 #endregion
@@ -67,234 +69,232 @@ namespace SqlBatis.DataMapper.Configuration
 	/// </summary>
 	public class DomSqlMapBuilder : IDomSqlMapBuilder
     {
-		#region Embedded resource
+        private readonly ILogger<DomSqlMapBuilder> _logger;
+        private readonly ILoggerFactory _loggerFactory;
 
-		// Which files must we allow to be used as Embedded Resources ?
-		// - slqMap.config [Yes]
-		// - providers.config [Yes]
-		// - sqlMap files [Yes]
-		// - properties file (like Database.config) [Yes]
-		// see contribution, NHibernate usage,
-		// see http://www.codeproject.com/csharp/EmbeddedResourceStrings.asp
-		// see http://www.devhood.com/tutorials/tutorial_details.aspx?tutorial_id=75
-		#endregion
+        #region Embedded resource
 
-		#region Constant
+        // Which files must we allow to be used as Embedded Resources ?
+        // - slqMap.config [Yes]
+        // - providers.config [Yes]
+        // - sqlMap files [Yes]
+        // - properties file (like Database.config) [Yes]
+        // see contribution, NHibernate usage,
+        // see http://www.codeproject.com/csharp/EmbeddedResourceStrings.asp
+        // see http://www.devhood.com/tutorials/tutorial_details.aspx?tutorial_id=75
+        #endregion
 
-		private const string PROPERTY_ELEMENT_KEY_ATTRIB = "key";
-		private const string PROPERTY_ELEMENT_VALUE_ATTRIB = "value";
+        #region Constant
 
-		/// <summary>
-		/// 
-		/// </summary>
-		private const string DATAMAPPER_NAMESPACE_PREFIX = "mapper";
-		private const string PROVIDERS_NAMESPACE_PREFIX = "provider";
-		private const string MAPPING_NAMESPACE_PREFIX = "mapping";
-		private const string DATAMAPPER_XML_NAMESPACE = "http://ibatis.apache.org/dataMapper";
-		private const string PROVIDER_XML_NAMESPACE = "http://ibatis.apache.org/providers";
-		private const string MAPPING_XML_NAMESPACE = "http://ibatis.apache.org/mapping";
+        private const string PROPERTY_ELEMENT_KEY_ATTRIB = "key";
+        private const string PROPERTY_ELEMENT_VALUE_ATTRIB = "value";
 
-		/// <summary>
-		/// Default filename of main configuration file.
-		/// </summary>
-		public const string DEFAULT_FILE_CONFIG_NAME = "SqlMap.config";
+        /// <summary>
+        /// 
+        /// </summary>
+        private const string DATAMAPPER_NAMESPACE_PREFIX = "mapper";
+        private const string PROVIDERS_NAMESPACE_PREFIX = "provider";
+        private const string MAPPING_NAMESPACE_PREFIX = "mapping";
+        private const string DATAMAPPER_XML_NAMESPACE = "http://ibatis.apache.org/dataMapper";
+        private const string PROVIDER_XML_NAMESPACE = "http://ibatis.apache.org/providers";
+        private const string MAPPING_XML_NAMESPACE = "http://ibatis.apache.org/mapping";
 
-		/// <summary>
-		/// Default provider name
-		/// </summary>
-		private const string DEFAULT_PROVIDER_NAME = "_DEFAULT_PROVIDER_NAME";
+        /// <summary>
+        /// Default filename of main configuration file.
+        /// </summary>
+        public const string DEFAULT_FILE_CONFIG_NAME = "SqlMap.config";
 
-		/// <summary>
-		/// Dot representation.
-		/// </summary>
-		public const string DOT = ".";
+        /// <summary>
+        /// Default provider name
+        /// </summary>
+        private const string DEFAULT_PROVIDER_NAME = "_DEFAULT_PROVIDER_NAME";
 
-		/// <summary>
-		/// Token for SqlMapConfig xml root element.
-		/// </summary>
-		private const string XML_DATAMAPPER_CONFIG_ROOT = "sqlMapConfig";
+        /// <summary>
+        /// Dot representation.
+        /// </summary>
+        public const string DOT = ".";
 
-		/// <summary>
-		/// Token for xml path to SqlMapConfig settings element.
-		/// </summary>
-		private const string XML_CONFIG_SETTINGS = "sqlMapConfig/settings/setting";
+        /// <summary>
+        /// Token for SqlMapConfig xml root element.
+        /// </summary>
+        private const string XML_DATAMAPPER_CONFIG_ROOT = "sqlMapConfig";
 
-		/// <summary>
-		/// Token for default providers config file name.
-		/// </summary>
-		private const string PROVIDERS_FILE_NAME = "providers.config";
+        /// <summary>
+        /// Token for xml path to SqlMapConfig settings element.
+        /// </summary>
+        private const string XML_CONFIG_SETTINGS = "sqlMapConfig/settings/setting";
 
-		/// <summary>
-		/// Token for xml path to SqlMapConfig providers element.
-		/// </summary>
-		private const string XML_CONFIG_PROVIDERS = "sqlMapConfig/providers";
+        /// <summary>
+        /// Token for default providers config file name.
+        /// </summary>
+        private const string PROVIDERS_FILE_NAME = "providers.config";
 
-		/// <summary>
-		/// Token for xml path to properties elements.
-		/// </summary>
-		private const string XML_PROPERTIES = "properties";
+        /// <summary>
+        /// Token for xml path to SqlMapConfig providers element.
+        /// </summary>
+        private const string XML_CONFIG_PROVIDERS = "sqlMapConfig/providers";
 
-		/// <summary>
-		/// Token for xml path to property elements.
-		/// </summary>
-		private const string XML_PROPERTY = "property";
+        /// <summary>
+        /// Token for xml path to properties elements.
+        /// </summary>
+        private const string XML_PROPERTIES = "properties";
 
-		/// <summary>
-		/// Token for xml path to settings add elements.
-		/// </summary>
-		private const string XML_SETTINGS_ADD = "/*/add";
+        /// <summary>
+        /// Token for xml path to property elements.
+        /// </summary>
+        private const string XML_PROPERTY = "property";
 
-		/// <summary>
-		/// Token for xml path to global properties elements.
-		/// </summary>
-		private const string XML_GLOBAL_PROPERTIES = "*/add";
+        /// <summary>
+        /// Token for xml path to settings add elements.
+        /// </summary>
+        private const string XML_SETTINGS_ADD = "/*/add";
 
-		/// <summary>
-		/// Token for xml path to provider elements.
-		/// </summary>
-		private const string XML_PROVIDER = "providers/provider";
+        /// <summary>
+        /// Token for xml path to global properties elements.
+        /// </summary>
+        private const string XML_GLOBAL_PROPERTIES = "*/add";
 
-		/// <summary>
-		/// Token for xml path to database provider elements.
-		/// </summary>
-		private const string XML_DATABASE_PROVIDER = "sqlMapConfig/database/provider";
+        /// <summary>
+        /// Token for xml path to provider elements.
+        /// </summary>
+        private const string XML_PROVIDER = "providers/provider";
 
-		/// <summary>
-		/// Token for xml path to database source elements.
-		/// </summary>
-		private const string XML_DATABASE_DATASOURCE = "sqlMapConfig/database/dataSource";
+        /// <summary>
+        /// Token for xml path to database provider elements.
+        /// </summary>
+        private const string XML_DATABASE_PROVIDER = "sqlMapConfig/database/provider";
 
-		/// <summary>
-		/// Token for xml path to global type alias elements.
-		/// </summary>
-		private const string XML_GLOBAL_TYPEALIAS = "sqlMapConfig/alias/typeAlias";
+        /// <summary>
+        /// Token for xml path to database source elements.
+        /// </summary>
+        private const string XML_DATABASE_DATASOURCE = "sqlMapConfig/database/dataSource";
 
-		/// <summary>
-		/// Token for xml path to global type alias elements.
-		/// </summary>
-		private const string XML_GLOBAL_TYPEHANDLER = "sqlMapConfig/typeHandlers/typeHandler";
+        /// <summary>
+        /// Token for xml path to global type alias elements.
+        /// </summary>
+        private const string XML_GLOBAL_TYPEALIAS = "sqlMapConfig/alias/typeAlias";
 
-		/// <summary>
-		/// Token for xml path to sqlMap elements.
-		/// </summary>
-		private const string XML_SQLMAP = "sqlMapConfig/sqlMaps/sqlMap";
+        /// <summary>
+        /// Token for xml path to global type alias elements.
+        /// </summary>
+        private const string XML_GLOBAL_TYPEHANDLER = "sqlMapConfig/typeHandlers/typeHandler";
 
-		/// <summary>
-		/// Token for mapping xml root.
-		/// </summary>
-		private const string XML_MAPPING_ROOT = "sqlMap";
+        /// <summary>
+        /// Token for xml path to sqlMap elements.
+        /// </summary>
+        private const string XML_SQLMAP = "sqlMapConfig/sqlMaps/sqlMap";
 
-		/// <summary>
-		/// Token for xml path to type alias elements.
-		/// </summary>
-		private const string XML_TYPEALIAS = "sqlMap/alias/typeAlias";
+        /// <summary>
+        /// Token for mapping xml root.
+        /// </summary>
+        private const string XML_MAPPING_ROOT = "sqlMap";
 
-		/// <summary>
-		/// Token for xml path to resultMap elements.
-		/// </summary>
-		private const string XML_RESULTMAP = "sqlMap/resultMaps/resultMap";
+        /// <summary>
+        /// Token for xml path to type alias elements.
+        /// </summary>
+        private const string XML_TYPEALIAS = "sqlMap/alias/typeAlias";
 
-		/// <summary>
-		/// Token for xml path to parameterMap elements.
-		/// </summary>
-		private const string XML_PARAMETERMAP = "sqlMap/parameterMaps/parameterMap";
+        /// <summary>
+        /// Token for xml path to resultMap elements.
+        /// </summary>
+        private const string XML_RESULTMAP = "sqlMap/resultMaps/resultMap";
+
+        /// <summary>
+        /// Token for xml path to parameterMap elements.
+        /// </summary>
+        private const string XML_PARAMETERMAP = "sqlMap/parameterMaps/parameterMap";
 
         /// <summary>
         /// Token for xml path to sql elements.
         /// </summary>
         private const string SQL_STATEMENT = "sqlMap/statements/sql";
-     	    
-		/// <summary>
-		/// Token for xml path to statement elements.
-		/// </summary>
-		private const string XML_STATEMENT = "sqlMap/statements/statement";
 
-		/// <summary>
-		/// Token for xml path to select elements.
-		/// </summary>
-		private const string XML_SELECT = "sqlMap/statements/select";
+        /// <summary>
+        /// Token for xml path to statement elements.
+        /// </summary>
+        private const string XML_STATEMENT = "sqlMap/statements/statement";
 
-		/// <summary>
-		/// Token for xml path to insert elements.
-		/// </summary>
-		private const string XML_INSERT = "sqlMap/statements/insert";
+        /// <summary>
+        /// Token for xml path to select elements.
+        /// </summary>
+        private const string XML_SELECT = "sqlMap/statements/select";
 
-		/// <summary>
-		/// Token for xml path to selectKey elements.
-		/// </summary>
-		private const string XML_SELECTKEY= "selectKey";
+        /// <summary>
+        /// Token for xml path to insert elements.
+        /// </summary>
+        private const string XML_INSERT = "sqlMap/statements/insert";
 
-		/// <summary>
-		/// Token for xml path to update elements.
-		/// </summary>
-		private const string XML_UPDATE ="sqlMap/statements/update";
+        /// <summary>
+        /// Token for xml path to selectKey elements.
+        /// </summary>
+        private const string XML_SELECTKEY = "selectKey";
 
-		/// <summary>
-		/// Token for xml path to delete elements.
-		/// </summary>
-		private const string XML_DELETE ="sqlMap/statements/delete";
+        /// <summary>
+        /// Token for xml path to update elements.
+        /// </summary>
+        private const string XML_UPDATE = "sqlMap/statements/update";
 
-		/// <summary>
-		/// Token for xml path to procedure elements.
-		/// </summary>
-		private const string XML_PROCEDURE ="sqlMap/statements/procedure";
+        /// <summary>
+        /// Token for xml path to delete elements.
+        /// </summary>
+        private const string XML_DELETE = "sqlMap/statements/delete";
 
-		/// <summary>
-		/// Token for xml path to flushOnExecute elements.
-		/// </summary>
-		private const string XML_FLUSH_ON_EXECUTE = "flushOnExecute";
+        /// <summary>
+        /// Token for xml path to procedure elements.
+        /// </summary>
+        private const string XML_PROCEDURE = "sqlMap/statements/procedure";
 
-		/// <summary>
-		/// Token for xml path to search statement elements.
-		/// </summary>
-		private const string XML_SEARCH_STATEMENT ="sqlMap/statements";
+        /// <summary>
+        /// Token for xml path to search statement elements.
+        /// </summary>
+        private const string XML_SEARCH_STATEMENT = "sqlMap/statements";
 
-		/// <summary>
-		/// Token for xml path to search parameterMap elements.
-		/// </summary>
-		private const string XML_SEARCH_PARAMETER ="sqlMap/parameterMaps/parameterMap[@id='";
+        /// <summary>
+        /// Token for xml path to search parameterMap elements.
+        /// </summary>
+        private const string XML_SEARCH_PARAMETER = "sqlMap/parameterMaps/parameterMap[@id='";
 
-		/// <summary>
-		/// Token for xml path to search resultMap elements.
-		/// </summary>
-		private const string XML_SEARCH_RESULTMAP ="sqlMap/resultMaps/resultMap[@id='";
+        /// <summary>
+        /// Token for xml path to search resultMap elements.
+        /// </summary>
+        private const string XML_SEARCH_RESULTMAP = "sqlMap/resultMaps/resultMap[@id='";
 
-		/// <summary>
-		/// Token for useStatementNamespaces attribute.
-		/// </summary>
-		private const string ATR_USE_STATEMENT_NAMESPACES = "useStatementNamespaces";
+        /// <summary>
+        /// Token for useStatementNamespaces attribute.
+        /// </summary>
+        private const string ATR_USE_STATEMENT_NAMESPACES = "useStatementNamespaces";
         /// <summary>
 		/// Token for validateSqlMap attribute.
 		/// </summary>
 		private const string ATR_VALIDATE_SQLMAP = "validateSqlMap";
-		/// <summary>
-		/// Token for useReflectionOptimizer attribute.
-		/// </summary>
-		private const string ATR_USE_REFLECTION_OPTIMIZER = "useReflectionOptimizer";
-	    /// <summary>
-	    ///     Lazy factory type
-	    /// </summary>
-	    private const string ATR_LAZY_FACTORY_TYPE = "lazyFactoryType";
+        /// <summary>
+        /// Token for useReflectionOptimizer attribute.
+        /// </summary>
+        private const string ATR_USE_REFLECTION_OPTIMIZER = "useReflectionOptimizer";
+        /// <summary>
+        ///     Lazy factory type
+        /// </summary>
+        private const string ATR_LAZY_FACTORY_TYPE = "lazyFactoryType";
 
         #endregion
 
         #region Fields
 
-        private static readonly ILog Logger = LogManager.GetLogger( MethodBase.GetCurrentMethod().DeclaringType );
-
-		private ConfigurationScope _configScope = null;
-		private DeSerializerFactory _deSerializerFactory = null; 
-		private InlineParameterMapParser _paramParser = null;
-        private IObjectFactory _objectFactory = null;
-        private ISetAccessorFactory _setAccessorFactory = null;
-        private IGetAccessorFactory _getAccessorFactory = null;
-	    private ISqlMapper _sqlMapper = null;
+        private readonly ConfigurationScope _configScope;
+        private readonly DeSerializerFactory _deSerializerFactory;
+        private readonly PreparedCommandFactory _commandFactory;
+        private readonly ResultStrategyFactory _resultStrategyFactory;
+        private readonly InlineParameterMapParser _paramParser;
+        private IObjectFactory _objectFactory;
+        private ISetAccessorFactory _setAccessorFactory;
+        private IGetAccessorFactory _getAccessorFactory;
+        private ISqlMapper _sqlMapper;
         private bool _validateSqlMapConfig = true;
 
-		#endregion 		
-		
-		#region Properties
-        
+        #endregion
+
+        #region Properties
+
         /// <summary>
         /// Allow properties to be set before configuration.
         /// </summary>
@@ -334,7 +334,7 @@ namespace SqlBatis.DataMapper.Configuration
         {
             set { _sqlMapper = value; }
         }
-	    
+
         /// <summary>
         /// Enable validation of SqlMap document. This property must be set before configuration.
         /// </summary>
@@ -342,264 +342,177 @@ namespace SqlBatis.DataMapper.Configuration
         {
             set { _validateSqlMapConfig = value; }
         }
-		#endregion
+        #endregion
 
-		#region Constructor
+        #region Constructor
 
-		/// <summary>
+        /// <summary>
         /// Constructs a DomSqlMapBuilder.
-		/// </summary>
-		public DomSqlMapBuilder()
-		{
-            _configScope = new ConfigurationScope();
-            _paramParser = new InlineParameterMapParser();
-            _deSerializerFactory = new DeSerializerFactory(_configScope);
-		}
-	
-		#endregion 
+        /// </summary>
+        public DomSqlMapBuilder(
+            ILogger<DomSqlMapBuilder> logger, 
+            ILoggerFactory loggerFactory,
+            ConfigurationScope configScope, 
+            InlineParameterMapParser paramParser, 
+            PreparedCommandFactory commandFactory,
+            ResultStrategyFactory resultStrategyFactory)
+        {
+            _logger = logger;
+            _loggerFactory = loggerFactory;
+            _configScope = configScope;
+            _paramParser = paramParser;
+            _deSerializerFactory = new DeSerializerFactory(configScope);
+            _commandFactory = commandFactory;
+            _resultStrategyFactory = resultStrategyFactory;
+        }
 
-		#region Configure
+        #endregion
 
-		/// <summary>
-		/// Configure a SqlMapper from default resource file named 'SqlMap.config'.
-		/// </summary>
-		/// <returns>An ISqlMapper instance.</returns>
-		/// <remarks>
-		/// The file path is relative to the application root. For ASP.Net applications
-		/// this would be the same directory as the Web.config file. For other .Net
-		/// applications the SqlMap.config file should be placed in the same folder
-		/// as the executable. 
-		/// </remarks>
+        #region Configure
+
+        /// <summary>
+        /// Configure a SqlMapper from default resource file named 'SqlMap.config'.
+        /// </summary>
+        /// <returns>An ISqlMapper instance.</returns>
+        /// <remarks>
+        /// The file path is relative to the application root. For ASP.Net applications
+        /// this would be the same directory as the Web.config file. For other .Net
+        /// applications the SqlMap.config file should be placed in the same folder
+        /// as the executable. 
+        /// </remarks>
         public ISqlMapper Configure()
-		{
-			return Configure( Resources.GetConfigAsXmlDocument(DEFAULT_FILE_CONFIG_NAME) );
-		}
+        {
+            return Configure(Resources.GetConfigAsXmlDocument(DEFAULT_FILE_CONFIG_NAME));
+        }
 
-		/// <summary>
-		/// Configure and returns an ISqlMapper instance.
-		/// </summary>
-		/// <param name="document">An xml sql map configuration document.</param>
-		/// <returns>An ISqlMapper instance.</returns>
+        /// <summary>
+        /// Configure and returns an ISqlMapper instance.
+        /// </summary>
+        /// <param name="document">An xml sql map configuration document.</param>
+        /// <returns>An ISqlMapper instance.</returns>
         public ISqlMapper Configure(XmlDocument document)
-		{
-			return Build( document, false );
-		}
+        {
+            return Build(document);
+        }
 
 
-		/// <summary>
-		/// Configure an ISqlMapper object from a file path.
-		/// </summary>
-		/// <param name="resource">
-		/// A relative resource path from your Application root 
-		/// or a absolute file path file://c:\dir\a.config
-		/// or, for an embedded file, use embedded://Assembly.Qualified.Resource.Name, MyAssembly
-		/// </param>
-		/// <returns>An ISqlMapper instance.</returns>
+        /// <summary>
+        /// Configure an ISqlMapper object from a file path.
+        /// </summary>
+        /// <param name="resource">
+        /// A relative resource path from your Application root 
+        /// or a absolute file path file://c:\dir\a.config
+        /// or, for an embedded file, use embedded://Assembly.Qualified.Resource.Name, MyAssembly
+        /// </param>
+        /// <returns>An ISqlMapper instance.</returns>
         public ISqlMapper Configure(string resource)
-		{
-			XmlDocument document;
-			if (resource.StartsWith("file://"))
-			{
-				document = Resources.GetUrlAsXmlDocument( resource.Remove(0, 7) );	
-			}
+        {
+            XmlDocument document;
+            if (resource.StartsWith("file://"))
+            {
+                document = Resources.GetUrlAsXmlDocument(resource.Remove(0, 7));
+            }
             else if (resource.StartsWith("embedded://"))
             {
                 document = Resources.GetEmbeddedResourceAsXmlDocument(resource.Remove(0, 11));
             }
-			else
-			{
-				document = Resources.GetResourceAsXmlDocument( resource );	
-			}
-			return Build( document, false);
-		}
+            else
+            {
+                document = Resources.GetResourceAsXmlDocument(resource);
+            }
+            return Build(document);
+        }
 
-		/// <summary>
-		///  Configure an ISqlMapper object from a stream.
-		/// </summary>
-		/// <param name="resource">A Stream resource.</param>
-		/// <returns>An SqlMap</returns>
-		public ISqlMapper Configure(Stream resource)
-		{
-			XmlDocument document = Resources.GetStreamAsXmlDocument( resource );
-			return Build( document, false);
-		}
+        /// <summary>
+        ///  Configure an ISqlMapper object from a stream.
+        /// </summary>
+        /// <param name="resource">A Stream resource.</param>
+        /// <returns>An SqlMap</returns>
+        public ISqlMapper Configure(Stream resource)
+        {
+            XmlDocument document = Resources.GetStreamAsXmlDocument(resource);
+            return Build(document);
+        }
 
-		/// <summary>
-		///  Configure an ISqlMapper object from a FileInfo.
-		/// </summary>
-		/// <param name="resource">A FileInfo resource.</param>
-		/// <returns>An ISqlMapper instance.</returns>
-		public ISqlMapper Configure(FileInfo resource)
-		{
-			XmlDocument document = Resources.GetFileInfoAsXmlDocument( resource );
-			return Build( document, false);
-		}
+        /// <summary>
+        ///  Configure an ISqlMapper object from a FileInfo.
+        /// </summary>
+        /// <param name="resource">A FileInfo resource.</param>
+        /// <returns>An ISqlMapper instance.</returns>
+        public ISqlMapper Configure(FileInfo resource)
+        {
+            XmlDocument document = Resources.GetFileInfoAsXmlDocument(resource);
+            return Build(document);
+        }
 
-		/// <summary>
-		///  Configure an ISqlMapper object from an Uri.
-		/// </summary>
-		/// <param name="resource">A Uri resource.</param>
-		/// <returns>An ISqlMapper instance.</returns>
-		public ISqlMapper Configure(Uri resource)
-		{
-			XmlDocument document = Resources.GetUriAsXmlDocument( resource );
-			return Build( document, false);
-		}
+        /// <summary>
+        ///  Configure an ISqlMapper object from an Uri.
+        /// </summary>
+        /// <param name="resource">A Uri resource.</param>
+        /// <returns>An ISqlMapper instance.</returns>
+        public ISqlMapper Configure(Uri resource)
+        {
+            XmlDocument document = Resources.GetUriAsXmlDocument(resource);
+            return Build(document);
+        }
 
-		/// <summary>
-		/// Configure and monitor the default configuration file (SqlMap.config) for modifications 
-		/// and automatically reconfigure SqlMap. 
-		/// </summary>
-		/// <returns>An ISqlMapper instance.</returns>
-		public ISqlMapper ConfigureAndWatch(ConfigureHandler configureDelegate)
-		{
-			return ConfigureAndWatch( DEFAULT_FILE_CONFIG_NAME, configureDelegate ) ;
-		}
 
-		/// <summary>
-		/// Configure and monitor the configuration file for modifications 
-		/// and automatically reconfigure the ISqlMapper instance.
-		/// </summary>
-		/// <param name="resource">
-		/// A relative ressource path from your Application root 
-		/// or an absolue file path file:\\c:\dir\a.config
-		/// </param>
-		///<param name="configureDelegate">
-		/// Delegate called when the file has changed.
-		/// </param>
-		/// <returns>An ISqlMapper instance.</returns>
-		public ISqlMapper ConfigureAndWatch( string resource, ConfigureHandler configureDelegate )
-		{
-			XmlDocument document = null;
-			if (resource.StartsWith("file://"))
-			{
-				document = Resources.GetUrlAsXmlDocument( resource.Remove(0, 7) );	
-			}
-			else
-			{
-				document = Resources.GetResourceAsXmlDocument( resource );	
-			}
+        #endregion
 
-			ConfigWatcherHandler.ClearFilesMonitored();
-			ConfigWatcherHandler.AddFileToWatch( Resources.GetFileInfo( resource ) );
+        #region Methods
 
-			TimerCallback callBakDelegate = OnConfigFileChange;
+        /// <summary>
+        /// Build an ISqlMapper instance.
+        /// </summary>
+        /// <param name="document">An xml configuration document.</param>
+        /// <param name="useConfigFileWatcher"></param>
+        /// <returns>Returns an ISqlMapper instance.</returns>
+        private ISqlMapper Build(XmlDocument document)
+        {
+            _configScope.SqlMapConfigDocument = document;
+            _configScope.XmlNamespaceManager = new XmlNamespaceManager(_configScope.SqlMapConfigDocument.NameTable);
+            _configScope.XmlNamespaceManager.AddNamespace(DATAMAPPER_NAMESPACE_PREFIX, DATAMAPPER_XML_NAMESPACE);
+            _configScope.XmlNamespaceManager.AddNamespace(PROVIDERS_NAMESPACE_PREFIX, PROVIDER_XML_NAMESPACE);
+            _configScope.XmlNamespaceManager.AddNamespace(MAPPING_NAMESPACE_PREFIX, MAPPING_XML_NAMESPACE);
 
-			StateConfig state = new StateConfig();
-			state.FileName = resource;
-			state.ConfigureHandler = configureDelegate;
-            
-			ISqlMapper sqlMapper = Build( document, true );
-		    
-			new ConfigWatcherHandler( callBakDelegate, state );
+            try
+            {
+                if (_validateSqlMapConfig)
+                {
+                    ValidateSchema(document.ChildNodes[1], "SqlMapConfig.xsd");
+                }
+                Initialize();
+                return _configScope.SqlMapper;
+            }
+            catch (Exception e)
+            {
+                throw new ConfigurationException(_configScope.ErrorContext.ToString(), e);
+            }
+        }
 
-            return sqlMapper;
-		}
-
-		/// <summary>
-		/// Configure and monitor the configuration file for modifications 
-		/// and automatically reconfigure the ISqlMapper instance.
-		/// </summary>
-		/// <param name="resource">
-		/// A FileInfo to a SqlMap.config file.
-		/// </param>
-		///<param name="configureDelegate">
-		/// Delegate called when the file has changed.
-		/// </param>
-		/// <returns>An ISqlMapper instance.</returns>
-		public ISqlMapper ConfigureAndWatch( FileInfo resource, ConfigureHandler configureDelegate )
-		{
-			XmlDocument document = Resources.GetFileInfoAsXmlDocument(resource);
-
-			ConfigWatcherHandler.ClearFilesMonitored();
-			ConfigWatcherHandler.AddFileToWatch( resource );
-
-			TimerCallback callBakDelegate = new TimerCallback( OnConfigFileChange );
-
-			StateConfig state = new StateConfig();
-			state.FileName = resource.FullName;
-			state.ConfigureHandler = configureDelegate;
-
-			ISqlMapper sqlMapper = Build( document, true );
-    
-		    new ConfigWatcherHandler(callBakDelegate, state);
-
-            return sqlMapper;
-		}
-
-		/// <summary>
-		/// Callback called when the SqlMap.config file has changed.
-		/// </summary>
-		/// <param name="obj">The <see cref="StateConfig"/> object.</param>
-		public static void OnConfigFileChange(object obj)
-		{
-			StateConfig state = (StateConfig)obj;
-			state.ConfigureHandler( null );
-		}
-
-		#endregion 
-
-		#region Methods
-
-		/// <summary>
-		/// Build an ISqlMapper instance.
-		/// </summary>
-		/// <param name="document">An xml configuration document.</param>
-		/// <param name="dataSource">A data source.</param>
-		/// <param name="useConfigFileWatcher"></param>
-		/// <param name="isCallFromDao"></param>
-		/// <returns>Returns an ISqlMapper instance.</returns>
-		private ISqlMapper Build(XmlDocument document,DataSource dataSource, 
-			bool useConfigFileWatcher, bool isCallFromDao)
-		{
-			_configScope.SqlMapConfigDocument = document;
-			_configScope.DataSource = dataSource;
-			_configScope.IsCallFromDao = isCallFromDao;
-			_configScope.UseConfigFileWatcher = useConfigFileWatcher;
-			
-			_configScope.XmlNamespaceManager = new XmlNamespaceManager(_configScope.SqlMapConfigDocument.NameTable);
-			_configScope.XmlNamespaceManager.AddNamespace(DATAMAPPER_NAMESPACE_PREFIX, DATAMAPPER_XML_NAMESPACE);
-			_configScope.XmlNamespaceManager.AddNamespace(PROVIDERS_NAMESPACE_PREFIX, PROVIDER_XML_NAMESPACE);
-			_configScope.XmlNamespaceManager.AddNamespace(MAPPING_NAMESPACE_PREFIX, MAPPING_XML_NAMESPACE);
-
-			try
-			{
-                if (_validateSqlMapConfig) 
-				{
-					ValidateSchema( document.ChildNodes[1], "SqlMapConfig.xsd" );
-				}
-				Initialize();
-				return _configScope.SqlMapper;
-			}
-			catch(Exception e)
-			{	
-				throw new ConfigurationException(_configScope.ErrorContext.ToString(), e);
-			}
-		}
-
-		/// <summary>
-		/// Validates an XmlNode against a schema file.
-		/// </summary>
-		/// <param name="section">The doc to validate.</param>
-		/// <param name="schemaFileName">Schema file name.</param>
-		private void ValidateSchema( XmlNode section, string schemaFileName )
-		{
+        /// <summary>
+        /// Validates an XmlNode against a schema file.
+        /// </summary>
+        /// <param name="section">The doc to validate.</param>
+        /// <param name="schemaFileName">Schema file name.</param>
+        private void ValidateSchema(XmlNode section, string schemaFileName)
+        {
             XmlReader validatingReader = null;
-            Stream xsdFile = null; 
+            Stream xsdFile = null;
 
-			_configScope.ErrorContext.Activity = "Validate SqlMap config";
-			try
-			{               
-				//Validate the document using a schema               
-				xsdFile = GetStream( schemaFileName ); 
+            _configScope.ErrorContext.Activity = "Validate SqlMap config";
+            try
+            {
+                //Validate the document using a schema               
+                xsdFile = GetStream(schemaFileName);
 
-				if (xsdFile == null)
-				{
-					// TODO: avoid using hard-coded value "SqlBatis.DataMapper"
-					throw new ConfigurationException( "Unable to locate embedded resource [SqlBatis.DataMapper."+schemaFileName+"]. If you are building from source, verfiy the file is marked as an embedded resource.");
-				}
-				
-				XmlSchema schema = XmlSchema.Read( xsdFile, ValidationCallBack );
+                if (xsdFile == null)
+                {
+                    // TODO: avoid using hard-coded value "SqlBatis.DataMapper"
+                    throw new ConfigurationException("Unable to locate embedded resource [SqlBatis.DataMapper." + schemaFileName + "]. If you are building from source, verify the file is marked as an embedded resource.");
+                }
+
+                XmlSchema schema = XmlSchema.Read(xsdFile, ValidationCallBack);
 
                 XmlReaderSettings settings = new XmlReaderSettings();
                 settings.ValidationType = ValidationType.Schema;
@@ -609,443 +522,357 @@ namespace SqlBatis.DataMapper.Configuration
                 schemas.Add(schema);
 
                 settings.Schemas = schemas;
-                validatingReader = XmlReader.Create( new XmlNodeReader(section) ,  settings);
+                validatingReader = XmlReader.Create(new XmlNodeReader(section), settings);
 
-				// Wire up the call back.  The ValidationEvent is fired when the
-				// XmlValidatingReader hits an issue validating a section of the xml
+                // Wire up the call back.  The ValidationEvent is fired when the
+                // XmlValidatingReader hits an issue validating a section of the xml
                 settings.ValidationEventHandler += ValidationCallBack;
 
                 // Validate the document
-				while (validatingReader.Read()){}
+                while (validatingReader.Read()) { }
 
-				if(! _configScope.IsXmlValid )
-				{
-					throw new ConfigurationException( "Invalid SqlMap.config document. cause :"+_configScope.ErrorContext.Resource);
-				}
-			}
-			finally
-			{
-				if( validatingReader != null ) validatingReader.Close();
-				if( xsdFile != null ) xsdFile.Close();
-			}
-		}
-
-		private void ValidationCallBack( object sender, ValidationEventArgs args )
-		{
-			_configScope.IsXmlValid = false;
-			_configScope.ErrorContext.Resource += args.Message + Environment.NewLine;
-		}
-
-		/// <summary>
-		/// Load statements (select, insert, update, delete), parameters, and resultMaps.
-		/// </summary>
-		/// <param name="document"></param>
-		/// <param name="dataSource"></param>
-		/// <param name="useConfigFileWatcher"></param>
-		/// <param name="properties"></param>
-		/// <returns></returns>
-		/// <remarks>Used by Dao</remarks>
-		public ISqlMapper Build(XmlDocument document, DataSource dataSource, bool useConfigFileWatcher, NameValueCollection properties)
-		{
-			_configScope.Properties.Add(properties);
-			return Build(document, dataSource, useConfigFileWatcher, true);
-		}
-
-		/// <summary>
-		/// Load SqlMap configuration from
-		/// from the XmlDocument passed in parameter.
-		/// </summary>
-		/// <param name="document">The xml sql map configuration.</param>
-		/// <param name="useConfigFileWatcher"></param>
-		public ISqlMapper Build(XmlDocument document, bool useConfigFileWatcher)
-		{
-			return Build(document, null, useConfigFileWatcher, false);
-		}
-
-		/// <summary>
-		/// Reset PreparedStatements cache
-		/// </summary>
-		private void Reset()
-		{
-		}
-
-		/// <summary>
-		/// Intialize the internal ISqlMapper instance.
-		/// </summary>
-		private void Initialize()
-		{
-			Reset();
-
-			#region Load Global Properties
-			if (_configScope.IsCallFromDao == false)
-			{
-				_configScope.NodeContext = _configScope.SqlMapConfigDocument.SelectSingleNode( ApplyDataMapperNamespacePrefix(XML_DATAMAPPER_CONFIG_ROOT), _configScope.XmlNamespaceManager);
-
-				ParseGlobalProperties();
-			}
-			#endregion
-
-			#region Load settings
-
-			_configScope.ErrorContext.Activity = "loading global settings";
-
-			XmlNodeList settings = _configScope.SqlMapConfigDocument.SelectNodes( ApplyDataMapperNamespacePrefix(XML_CONFIG_SETTINGS), _configScope.XmlNamespaceManager);
-
-			if (settings!=null)
-			{
-				foreach (XmlNode setting in settings)
-				{
-					if (setting.Attributes[ATR_USE_STATEMENT_NAMESPACES] != null )
-					{	
-						string value = NodeUtils.ParsePropertyTokens(setting.Attributes[ATR_USE_STATEMENT_NAMESPACES].Value, _configScope.Properties);
-						_configScope.UseStatementNamespaces =  Convert.ToBoolean( value ); 
-					}
-					if (setting.Attributes[ATR_USE_REFLECTION_OPTIMIZER] != null )
-					{		
-						string value = NodeUtils.ParsePropertyTokens(setting.Attributes[ATR_USE_REFLECTION_OPTIMIZER].Value, _configScope.Properties);
-						_configScope.UseReflectionOptimizer =  Convert.ToBoolean( value ); 
-					}
-					if (setting.Attributes[ATR_VALIDATE_SQLMAP] != null )
-					{		
-						string value = NodeUtils.ParsePropertyTokens(setting.Attributes[ATR_VALIDATE_SQLMAP].Value, _configScope.Properties);
-						_configScope.ValidateSqlMap =  Convert.ToBoolean( value ); 
-					}
-				    if (setting.Attributes[ATR_LAZY_FACTORY_TYPE] != null)
-				    {
-				        string value = NodeUtils.ParsePropertyTokens(setting.Attributes[ATR_LAZY_FACTORY_TYPE].Value,
-				            _configScope.Properties);
-				        _configScope.LazyFactoryType = TypeUtils.ResolveType(value);
-				    }
+                if (!_configScope.IsXmlValid)
+                {
+                    throw new ConfigurationException("Invalid SqlMap.config document. cause :" + _configScope.ErrorContext.Resource);
                 }
-			}
+            }
+            finally
+            {
+                validatingReader?.Close();
+                xsdFile?.Close();
+            }
+        }
 
-			#endregion            
-			
+        private void ValidationCallBack(object sender, ValidationEventArgs args)
+        {
+            _configScope.IsXmlValid = false;
+            _configScope.ErrorContext.Resource += args.Message + Environment.NewLine;
+        }
+
+
+        /// <summary>
+        /// Initialize the internal ISqlMapper instance.
+        /// </summary>
+        private void Initialize()
+        {
+            _configScope.NodeContext = _configScope.SqlMapConfigDocument.SelectSingleNode(ApplyDataMapperNamespacePrefix(XML_DATAMAPPER_CONFIG_ROOT), _configScope.XmlNamespaceManager);
+            ParseGlobalProperties();
+
+            _configScope.ErrorContext.Activity = "loading global settings";
+
+            XmlNodeList settings = _configScope.SqlMapConfigDocument.SelectNodes(ApplyDataMapperNamespacePrefix(XML_CONFIG_SETTINGS), _configScope.XmlNamespaceManager);
+
+            if (settings != null)
+            {
+                foreach (XmlNode setting in settings)
+                {
+                    if (setting.Attributes[ATR_USE_STATEMENT_NAMESPACES] != null)
+                    {
+                        string value = NodeUtils.ParsePropertyTokens(setting.Attributes[ATR_USE_STATEMENT_NAMESPACES].Value, _configScope.Properties);
+                        _configScope.UseStatementNamespaces = Convert.ToBoolean(value);
+                    }
+                    if (setting.Attributes[ATR_VALIDATE_SQLMAP] != null)
+                    {
+                        string value = NodeUtils.ParsePropertyTokens(setting.Attributes[ATR_VALIDATE_SQLMAP].Value, _configScope.Properties);
+                        _configScope.ValidateSqlMap = Convert.ToBoolean(value);
+                    }
+                    if (setting.Attributes[ATR_LAZY_FACTORY_TYPE] != null)
+                    {
+                        string value = NodeUtils.ParsePropertyTokens(setting.Attributes[ATR_LAZY_FACTORY_TYPE].Value,
+                            _configScope.Properties);
+                        _configScope.LazyFactoryType = TypeUtils.ResolveType(value);
+                    }
+                }
+            }
+
             if (_objectFactory == null)
             {
-                _objectFactory = new ObjectFactory(_configScope.UseReflectionOptimizer);
+                _objectFactory = new ObjectFactory(_loggerFactory, _loggerFactory.CreateLogger<ObjectFactory>());
             }
             if (_setAccessorFactory == null)
             {
-                _setAccessorFactory = new SetAccessorFactory(_configScope.UseReflectionOptimizer);
+                _setAccessorFactory = new SetAccessorFactory();
             }
             if (_getAccessorFactory == null)
             {
-                _getAccessorFactory = new GetAccessorFactory(_configScope.UseReflectionOptimizer);
+                _getAccessorFactory = new GetAccessorFactory();
             }
-		    if (_sqlMapper == null)
-		    {
+            if (_sqlMapper == null)
+            {
+                var typeHandlerFactory = new TypeHandlerFactory(_loggerFactory.CreateLogger<TypeHandlerFactory>());
+                var dbHelperParameterCache = new DBHelperParameterCache();
                 AccessorFactory accessorFactory = new AccessorFactory(_setAccessorFactory, _getAccessorFactory);
-                _configScope.SqlMapper = new SqlMapper(_objectFactory, accessorFactory);
-		    }
-		    else
-		    {
+                var id = HashCodeProvider.GetIdentityHashCode(this).ToString();
+                var sessionStoreFactory = new SessionStoreFactory();
+                _configScope.SqlMapper = new SqlMapper(id, _objectFactory, accessorFactory, typeHandlerFactory, dbHelperParameterCache, sessionStoreFactory, _loggerFactory);
+            }
+            else
+            {
                 _configScope.SqlMapper = _sqlMapper;
-		    }
+            }
 
             ParameterMap emptyParameterMap = new ParameterMap(_configScope.DataExchangeFactory);
             emptyParameterMap.Id = ConfigurationScope.EMPTY_PARAMETER_MAP;
-            _configScope.SqlMapper.AddParameterMap( emptyParameterMap );
+            _configScope.SqlMapper.AddParameterMap(emptyParameterMap);
 
             TypeAlias stringTypeHandler = new TypeAlias(typeof(AnsiStringTypeHandler));
             stringTypeHandler.Name = "AnsiStringTypeHandler";
             _configScope.SqlMapper.TypeHandlerFactory.AddTypeAlias(stringTypeHandler.Name, stringTypeHandler);
 
-			#region Load providers
-			if (_configScope.IsCallFromDao == false)
-			{
-				GetProviders();
-			}
-			#endregion
+            GetProviders();
 
-			#region Load DataBase
-			#region Choose the  provider
-			IDbProvider provider = null;
-			if ( _configScope.IsCallFromDao==false )
-			{
-				provider = ParseProvider();
-				_configScope.ErrorContext.Reset();
-			}
-			#endregion
+            var provider = ParseProvider();
+            _configScope.ErrorContext.Reset();
 
-			#region Load the DataSources
+            _configScope.ErrorContext.Activity = "loading Database DataSource";
+            XmlNode nodeDataSource = _configScope.SqlMapConfigDocument.SelectSingleNode(ApplyDataMapperNamespacePrefix(XML_DATABASE_DATASOURCE), _configScope.XmlNamespaceManager);
 
-			_configScope.ErrorContext.Activity = "loading Database DataSource";
-			XmlNode nodeDataSource = _configScope.SqlMapConfigDocument.SelectSingleNode( ApplyDataMapperNamespacePrefix(XML_DATABASE_DATASOURCE), _configScope.XmlNamespaceManager );
-			
-			if (nodeDataSource == null)
-			{
-				if (_configScope.IsCallFromDao == false)
-				{
-					throw new ConfigurationException("There's no dataSource tag in SqlMap.config.");
-				}
-				else  // patch from Luke Yang
-				{
-					_configScope.SqlMapper.DataSource = _configScope.DataSource;
-				}
-			}
-			else
-			{
-				if (_configScope.IsCallFromDao == false)
-				{
-					_configScope.ErrorContext.Resource = nodeDataSource.OuterXml.ToString();
-					_configScope.ErrorContext.MoreInfo = "parse DataSource";
+            if (nodeDataSource == null)
+            {
+                throw new ConfigurationException("There's no dataSource tag in SqlMap.config.");
+            }
 
-					DataSource dataSource = DataSourceDeSerializer.Deserialize( nodeDataSource );
+            _configScope.ErrorContext.Resource = nodeDataSource.OuterXml;
+            _configScope.ErrorContext.MoreInfo = "parse DataSource";
 
-					dataSource.DbProvider = provider;
-					dataSource.ConnectionString = NodeUtils.ParsePropertyTokens(dataSource.ConnectionString, _configScope.Properties);
+            DataSource dataSource = DataSourceDeSerializer.Deserialize(nodeDataSource);
 
-					_configScope.DataSource = dataSource;
-					_configScope.SqlMapper.DataSource = _configScope.DataSource;
-				}
-				else
-				{
-					_configScope.SqlMapper.DataSource = _configScope.DataSource;
-				}
-				_configScope.ErrorContext.Reset();
-			}
-			#endregion
-			#endregion
+            dataSource.DbProvider = provider;
+            dataSource.ConnectionString = NodeUtils.ParsePropertyTokens(dataSource.ConnectionString, _configScope.Properties);
 
-			#region Load Global TypeAlias
-			foreach (XmlNode xmlNode in _configScope.SqlMapConfigDocument.SelectNodes( ApplyDataMapperNamespacePrefix(XML_GLOBAL_TYPEALIAS), _configScope.XmlNamespaceManager))
-			{
-				_configScope.ErrorContext.Activity = "loading global Type alias";
-				TypeAliasDeSerializer.Deserialize(xmlNode, _configScope);
-			}
-			_configScope.ErrorContext.Reset();
-			#endregion
+            _configScope.SqlMapper.DataSource = dataSource;
+            _configScope.ErrorContext.Reset();
 
-			#region Load TypeHandlers
-			foreach (XmlNode xmlNode in _configScope.SqlMapConfigDocument.SelectNodes( ApplyDataMapperNamespacePrefix(XML_GLOBAL_TYPEHANDLER), _configScope.XmlNamespaceManager))
-			{
-				try
-				{
-					_configScope.ErrorContext.Activity = "loading typeHandler";
-					TypeHandlerDeSerializer.Deserialize( xmlNode, _configScope );
-				} 
-				catch (Exception e) 
-				{
-					NameValueCollection prop = NodeUtils.ParseAttributes(xmlNode, _configScope.Properties);
+            #region Load Global TypeAlias
+            foreach (XmlNode xmlNode in _configScope.SqlMapConfigDocument.SelectNodes(ApplyDataMapperNamespacePrefix(XML_GLOBAL_TYPEALIAS), _configScope.XmlNamespaceManager))
+            {
+                _configScope.ErrorContext.Activity = "loading global Type alias";
+                TypeAliasDeSerializer.Deserialize(xmlNode, _configScope);
+            }
+            _configScope.ErrorContext.Reset();
+            #endregion
 
-					throw new ConfigurationException(
-						String.Format("Error registering TypeHandler class \"{0}\" for handling .Net type \"{1}\" and dbType \"{2}\". Cause: {3}", 
-						NodeUtils.GetStringAttribute(prop, "callback"),
-						NodeUtils.GetStringAttribute(prop, "type"),
-						NodeUtils.GetStringAttribute(prop, "dbType"),
-						e.Message), e);
-				}
-			}
-			_configScope.ErrorContext.Reset();
-			#endregion
+            #region Load TypeHandlers
+            foreach (XmlNode xmlNode in _configScope.SqlMapConfigDocument.SelectNodes(ApplyDataMapperNamespacePrefix(XML_GLOBAL_TYPEHANDLER), _configScope.XmlNamespaceManager))
+            {
+                try
+                {
+                    _configScope.ErrorContext.Activity = "loading typeHandler";
+                    TypeHandlerDeSerializer.Deserialize(xmlNode, _configScope);
+                }
+                catch (Exception e)
+                {
+                    NameValueCollection prop = NodeUtils.ParseAttributes(xmlNode, _configScope.Properties);
 
-			#region Load sqlMap mapping files
-			
-			foreach (XmlNode xmlNode in _configScope.SqlMapConfigDocument.SelectNodes( ApplyDataMapperNamespacePrefix(XML_SQLMAP), _configScope.XmlNamespaceManager))
-			{
-				_configScope.NodeContext = xmlNode;
-				ConfigureSqlMap();
-			}
+                    throw new ConfigurationException(
+                        String.Format("Error registering TypeHandler class \"{0}\" for handling .Net type \"{1}\" and dbType \"{2}\". Cause: {3}",
+                        NodeUtils.GetStringAttribute(prop, "callback"),
+                        NodeUtils.GetStringAttribute(prop, "type"),
+                        NodeUtils.GetStringAttribute(prop, "dbType"),
+                        e.Message), e);
+                }
+            }
+            _configScope.ErrorContext.Reset();
+            #endregion
 
-			#endregion
+            #region Load sqlMap mapping files
 
-			#region Resolve resultMap / Discriminator / PropertyStategy attributes on Result/Argument Property 
+            foreach (XmlNode xmlNode in _configScope.SqlMapConfigDocument.SelectNodes(ApplyDataMapperNamespacePrefix(XML_SQLMAP), _configScope.XmlNamespaceManager))
+            {
+                _configScope.NodeContext = xmlNode;
+                ConfigureSqlMap();
+            }
 
-			foreach(DictionaryEntry entry in _configScope.SqlMapper.ResultMaps)
-			{
-				_configScope.ErrorContext.Activity = "Resolve 'resultMap' attribute on Result Property";
+            #endregion
 
-				ResultMap resultMap = (ResultMap)entry.Value;
-				for(int index=0; index< resultMap.Properties.Count; index++)
-				{
-					ResultProperty result = resultMap.Properties[index];
-					if(result.NestedResultMapName.Length >0)
-					{
-						result.NestedResultMap = _configScope.SqlMapper.GetResultMap(result.NestedResultMapName);
-					}
-					result.PropertyStrategy = PropertyStrategyFactory.Get(result);
-				}
-				for(int index=0; index< resultMap.Parameters.Count; index++)
-				{
-					ResultProperty result = resultMap.Parameters[index];
-					if(result.NestedResultMapName.Length >0)
-					{
-						result.NestedResultMap = _configScope.SqlMapper.GetResultMap(result.NestedResultMapName);
-					}
-					result.ArgumentStrategy = ArgumentStrategyFactory.Get( (ArgumentProperty)result );
-				}
-				if (resultMap.Discriminator != null)
-				{
-					resultMap.Discriminator.Initialize(_configScope);
-				}
-			}
+            #region Resolve resultMap / Discriminator / PropertyStategy attributes on Result/Argument Property 
 
-			_configScope.ErrorContext.Reset();
+            foreach (DictionaryEntry entry in _configScope.SqlMapper.ResultMaps)
+            {
+                _configScope.ErrorContext.Activity = "Resolve 'resultMap' attribute on Result Property";
 
-			#endregion
+                ResultMap resultMap = (ResultMap)entry.Value;
+                for (int index = 0; index < resultMap.Properties.Count; index++)
+                {
+                    ResultProperty result = resultMap.Properties[index];
+                    if (result.NestedResultMapName.Length > 0)
+                    {
+                        result.NestedResultMap = _configScope.SqlMapper.GetResultMap(result.NestedResultMapName);
+                    }
+                    result.PropertyStrategy = PropertyStrategyFactory.Get(result);
+                }
+                for (int index = 0; index < resultMap.Parameters.Count; index++)
+                {
+                    ResultProperty result = resultMap.Parameters[index];
+                    if (result.NestedResultMapName.Length > 0)
+                    {
+                        result.NestedResultMap = _configScope.SqlMapper.GetResultMap(result.NestedResultMapName);
+                    }
+                    result.ArgumentStrategy = ArgumentStrategyFactory.Get((ArgumentProperty)result);
+                }
+                if (resultMap.Discriminator != null)
+                {
+                    resultMap.Discriminator.Initialize(_configScope);
+                }
+            }
 
-		}
+            _configScope.ErrorContext.Reset();
 
-		/// <summary>
-		/// Load and initialize providers from specified file.
-		/// </summary>
-		private void GetProviders()
-		{
-			IDbProvider provider;
-			XmlDocument xmlProviders;
+            #endregion
 
-			_configScope.ErrorContext.Activity = "loading Providers";
+        }
 
-			XmlNode providersNode;
-			providersNode = _configScope.SqlMapConfigDocument.SelectSingleNode( ApplyDataMapperNamespacePrefix(XML_CONFIG_PROVIDERS), _configScope.XmlNamespaceManager);
+        /// <summary>
+        /// Load and initialize providers from specified file.
+        /// </summary>
+        private void GetProviders()
+        {
+            IDbProvider provider;
+            XmlDocument xmlProviders;
 
-			if (providersNode != null )
-			{
-				xmlProviders = Resources.GetAsXmlDocument( providersNode, _configScope.Properties );
-			}
-			else
-			{
-				xmlProviders = Resources.GetConfigAsXmlDocument(PROVIDERS_FILE_NAME);
-			}
+            _configScope.ErrorContext.Activity = "loading Providers";
 
-			foreach (XmlNode node in xmlProviders.SelectNodes( ApplyProviderNamespacePrefix(XML_PROVIDER), _configScope.XmlNamespaceManager ) )
-			{
-				_configScope.ErrorContext.Resource = node.InnerXml.ToString();
-				provider = ProviderDeSerializer.Deserialize(node);
+            XmlNode providersNode;
+            providersNode = _configScope.SqlMapConfigDocument.SelectSingleNode(ApplyDataMapperNamespacePrefix(XML_CONFIG_PROVIDERS), _configScope.XmlNamespaceManager);
 
-				if (provider.IsEnabled)
-				{
-					_configScope.ErrorContext.ObjectId = provider.Name;
-					_configScope.ErrorContext.MoreInfo = "initialize provider";
+            if (providersNode != null)
+            {
+                xmlProviders = Resources.GetAsXmlDocument(providersNode, _configScope.Properties);
+            }
+            else
+            {
+                xmlProviders = Resources.GetConfigAsXmlDocument(PROVIDERS_FILE_NAME);
+            }
 
-					provider.Initialize();
-					_configScope.Providers.Add(provider.Name, provider);
+            foreach (XmlNode node in xmlProviders.SelectNodes(ApplyProviderNamespacePrefix(XML_PROVIDER), _configScope.XmlNamespaceManager))
+            {
+                _configScope.ErrorContext.Resource = node.InnerXml.ToString();
+                provider = ProviderDeSerializer.Deserialize(node);
 
-					if (provider.IsDefault)
-					{
-						if (_configScope.Providers[DEFAULT_PROVIDER_NAME] == null) 
-						{
-							_configScope.Providers.Add(DEFAULT_PROVIDER_NAME,provider);
-						} 
-						else 
-						{
-							throw new ConfigurationException(
-								string.Format("Error while configuring the Provider named \"{0}\" There can be only one default Provider.",provider.Name));
-						}
-					}
-				}
-			}
-			_configScope.ErrorContext.Reset();
-		}
+                if (provider.IsEnabled)
+                {
+                    _configScope.ErrorContext.ObjectId = provider.Name;
+                    _configScope.ErrorContext.MoreInfo = "initialize provider";
+
+                    provider.Initialize();
+                    _configScope.Providers.Add(provider.Name, provider);
+
+                    if (provider.IsDefault)
+                    {
+                        if (_configScope.Providers[DEFAULT_PROVIDER_NAME] == null)
+                        {
+                            _configScope.Providers.Add(DEFAULT_PROVIDER_NAME, provider);
+                        }
+                        else
+                        {
+                            throw new ConfigurationException(
+                                string.Format("Error while configuring the Provider named \"{0}\" There can be only one default Provider.", provider.Name));
+                        }
+                    }
+                }
+            }
+            _configScope.ErrorContext.Reset();
+        }
 
 
-		/// <summary>
-		/// Parse the provider tag.
-		/// </summary>
-		/// <returns>A provider object.</returns>
-		private IDbProvider ParseProvider()
-		{
-			_configScope.ErrorContext.Activity = "load DataBase Provider";
-			XmlNode node = _configScope.SqlMapConfigDocument.SelectSingleNode( ApplyDataMapperNamespacePrefix(XML_DATABASE_PROVIDER), _configScope.XmlNamespaceManager  );
+        /// <summary>
+        /// Parse the provider tag.
+        /// </summary>
+        /// <returns>A provider object.</returns>
+        private IDbProvider ParseProvider()
+        {
+            _configScope.ErrorContext.Activity = "load DataBase Provider";
+            XmlNode node = _configScope.SqlMapConfigDocument.SelectSingleNode(ApplyDataMapperNamespacePrefix(XML_DATABASE_PROVIDER), _configScope.XmlNamespaceManager);
 
-			if (node != null)
-			{
-				_configScope.ErrorContext.Resource = node.OuterXml.ToString();
-				string providerName = NodeUtils.ParsePropertyTokens(node.Attributes["name"].Value, _configScope.Properties);
+            if (node != null)
+            {
+                _configScope.ErrorContext.Resource = node.OuterXml.ToString();
+                string providerName = NodeUtils.ParsePropertyTokens(node.Attributes["name"].Value, _configScope.Properties);
 
-				_configScope.ErrorContext.ObjectId = providerName;
+                _configScope.ErrorContext.ObjectId = providerName;
 
-				if (_configScope.Providers.Contains(providerName))
-				{
-					return (IDbProvider) _configScope.Providers[providerName];
-				}
-				else
-				{
-					throw new ConfigurationException(
-						string.Format("Error while configuring the Provider named \"{0}\". Cause : The provider is not in 'providers.config' or is not enabled.",
-							providerName));
-				}
-			}
-			else
-			{
-				if (_configScope.Providers.Contains(DEFAULT_PROVIDER_NAME))
-				{
-					return (IDbProvider) _configScope.Providers[DEFAULT_PROVIDER_NAME];
-				}
-				else
-				{
-					throw new ConfigurationException(
-						string.Format("Error while configuring the SqlMap. There is no provider marked default in 'providers.config' file."));
-				}
-			}
-		}
+                if (_configScope.Providers.Contains(providerName))
+                {
+                    return (IDbProvider)_configScope.Providers[providerName];
+                }
+                else
+                {
+                    throw new ConfigurationException(
+                        string.Format("Error while configuring the Provider named \"{0}\". Cause : The provider is not in 'providers.config' or is not enabled.",
+                            providerName));
+                }
+            }
+            else
+            {
+                if (_configScope.Providers.Contains(DEFAULT_PROVIDER_NAME))
+                {
+                    return (IDbProvider)_configScope.Providers[DEFAULT_PROVIDER_NAME];
+                }
+                else
+                {
+                    throw new ConfigurationException(
+                        string.Format("Error while configuring the SqlMap. There is no provider marked default in 'providers.config' file."));
+                }
+            }
+        }
 
 
-		/// <summary>
-		/// Load sqlMap statement.
-		/// </summary>
-		private void ConfigureSqlMap( )
-		{
-			XmlNode sqlMapNode = _configScope.NodeContext;
+        /// <summary>
+        /// Load sqlMap statement.
+        /// </summary>
+        private void ConfigureSqlMap()
+        {
+            XmlNode sqlMapNode = _configScope.NodeContext;
 
-			_configScope.ErrorContext.Activity = "loading SqlMap";
-			_configScope.ErrorContext.Resource = sqlMapNode.OuterXml.ToString();
+            _configScope.ErrorContext.Activity = "loading SqlMap";
+            _configScope.ErrorContext.Resource = sqlMapNode.OuterXml.ToString();
 
-			if (_configScope.UseConfigFileWatcher)
-			{
-				if (sqlMapNode.Attributes["resource"] != null || sqlMapNode.Attributes["url"] != null) 
-				{ 
-					ConfigWatcherHandler.AddFileToWatch( Resources.GetFileInfo( Resources.GetValueOfNodeResourceUrl(sqlMapNode, _configScope.Properties) ) );
-				}
-			}
+            // Load the file 
+            _configScope.SqlMapDocument = Resources.GetAsXmlDocument(sqlMapNode, _configScope.Properties);
 
-			// Load the file 
-			_configScope.SqlMapDocument = Resources.GetAsXmlDocument(sqlMapNode, _configScope.Properties);
-			
-			if (_configScope.ValidateSqlMap)
-			{
-				ValidateSchema( _configScope.SqlMapDocument.ChildNodes[1], "SqlMap.xsd" );
-			}
+            if (_configScope.ValidateSqlMap)
+            {
+                ValidateSchema(_configScope.SqlMapDocument.ChildNodes[1], "SqlMap.xsd");
+            }
 
-			_configScope.SqlMapNamespace = _configScope.SqlMapDocument.SelectSingleNode( ApplyMappingNamespacePrefix(XML_MAPPING_ROOT), _configScope.XmlNamespaceManager ).Attributes["namespace"].Value;
+            _configScope.SqlMapNamespace = _configScope.SqlMapDocument.SelectSingleNode(ApplyMappingNamespacePrefix(XML_MAPPING_ROOT), _configScope.XmlNamespaceManager).Attributes["namespace"].Value;
 
-			#region Load TypeAlias
+            #region Load TypeAlias
 
-			foreach (XmlNode xmlNode in _configScope.SqlMapDocument.SelectNodes( ApplyMappingNamespacePrefix(XML_TYPEALIAS), _configScope.XmlNamespaceManager))
-			{
-				TypeAliasDeSerializer.Deserialize(xmlNode, _configScope);
-			}
-			_configScope.ErrorContext.MoreInfo = string.Empty;
-			_configScope.ErrorContext.ObjectId = string.Empty;
+            foreach (XmlNode xmlNode in _configScope.SqlMapDocument.SelectNodes(ApplyMappingNamespacePrefix(XML_TYPEALIAS), _configScope.XmlNamespaceManager))
+            {
+                TypeAliasDeSerializer.Deserialize(xmlNode, _configScope);
+            }
+            _configScope.ErrorContext.MoreInfo = string.Empty;
+            _configScope.ErrorContext.ObjectId = string.Empty;
 
-			#endregion
+            #endregion
 
-			#region Load resultMap
+            #region Load resultMap
 
-			foreach (XmlNode xmlNode in _configScope.SqlMapDocument.SelectNodes( ApplyMappingNamespacePrefix(XML_RESULTMAP), _configScope.XmlNamespaceManager))
-			{
-				_configScope.ErrorContext.MoreInfo = "loading ResultMap tag";
-				_configScope.NodeContext = xmlNode; // A ResultMap node
+            foreach (XmlNode xmlNode in _configScope.SqlMapDocument.SelectNodes(ApplyMappingNamespacePrefix(XML_RESULTMAP), _configScope.XmlNamespaceManager))
+            {
+                _configScope.ErrorContext.MoreInfo = "loading ResultMap tag";
+                _configScope.NodeContext = xmlNode; // A ResultMap node
 
-				BuildResultMap();
-			}
+                BuildResultMap();
+            }
 
-			#endregion
+            #endregion
 
-			#region Load parameterMaps
+            #region Load parameterMaps
 
-			foreach (XmlNode xmlNode in _configScope.SqlMapDocument.SelectNodes( ApplyMappingNamespacePrefix(XML_PARAMETERMAP), _configScope.XmlNamespaceManager))
-			{
-				_configScope.ErrorContext.MoreInfo = "loading ParameterMap tag";
-				_configScope.NodeContext = xmlNode; // A ParameterMap node
+            foreach (XmlNode xmlNode in _configScope.SqlMapDocument.SelectNodes(ApplyMappingNamespacePrefix(XML_PARAMETERMAP), _configScope.XmlNamespaceManager))
+            {
+                _configScope.ErrorContext.MoreInfo = "loading ParameterMap tag";
+                _configScope.NodeContext = xmlNode; // A ParameterMap node
 
-				BuildParameterMap();
-			}
+                BuildParameterMap();
+            }
 
-			#endregion
-		
-			#region Load statements
+            #endregion
+
+            #region Load statements
 
             #region Sql tag
             foreach (XmlNode xmlNode in _configScope.SqlMapDocument.SelectNodes(ApplyMappingNamespacePrefix(SQL_STATEMENT), _configScope.XmlNamespaceManager))
@@ -1056,332 +883,332 @@ namespace SqlBatis.DataMapper.Configuration
                 SqlDeSerializer.Deserialize(xmlNode, _configScope);
             }
             #endregion
-		    
-			#region Statement tag
-			Statement statement;
-			foreach (XmlNode xmlNode in _configScope.SqlMapDocument.SelectNodes( ApplyMappingNamespacePrefix(XML_STATEMENT), _configScope.XmlNamespaceManager))
-			{
-				_configScope.ErrorContext.MoreInfo = "loading statement tag";
-				_configScope.NodeContext = xmlNode; // A statement tag
 
-				statement = StatementDeSerializer.Deserialize(xmlNode, _configScope);
+            #region Statement tag
+            Statement statement;
+            foreach (XmlNode xmlNode in _configScope.SqlMapDocument.SelectNodes(ApplyMappingNamespacePrefix(XML_STATEMENT), _configScope.XmlNamespaceManager))
+            {
+                _configScope.ErrorContext.MoreInfo = "loading statement tag";
+                _configScope.NodeContext = xmlNode; // A statement tag
+
+                statement = StatementDeSerializer.Deserialize(xmlNode, _configScope);
                 statement.ParameterMapName = _configScope.ApplyNamespace(statement.ParameterMapName);
                 //statement.ResultMapName = ApplyNamespace( statement.ResultMapName );
 
-				if (_configScope.UseStatementNamespaces)
-				{
+                if (_configScope.UseStatementNamespaces)
+                {
                     statement.Id = _configScope.ApplyNamespace(statement.Id);
-				}
-				_configScope.ErrorContext.ObjectId = statement.Id;
-				statement.Initialize( _configScope );
+                }
+                _configScope.ErrorContext.ObjectId = statement.Id;
+                statement.Initialize(_configScope);
 
-				// Build ISql (analyse sql statement)		
-				ProcessSqlStatement( statement  );
+                // Build ISql (analyse sql statement)		
+                ProcessSqlStatement(statement);
 
-				// Build MappedStatement
-                MappedStatement mappedStatement = new MappedStatement(_configScope.SqlMapper, statement);
+                // Build MappedStatement
+                MappedStatement mappedStatement = new MappedStatement(_configScope.SqlMapper, statement, _commandFactory, _resultStrategyFactory);
                 IMappedStatement mapStatement = mappedStatement;
                 _configScope.SqlMapper.AddMappedStatement(mapStatement.Id, mapStatement);
-			}
-			#endregion
+            }
+            #endregion
 
-			#region Select tag
-			Select select;
-			foreach (XmlNode xmlNode in _configScope.SqlMapDocument.SelectNodes( ApplyMappingNamespacePrefix(XML_SELECT), _configScope.XmlNamespaceManager))
-			{
-				_configScope.ErrorContext.MoreInfo = "loading select tag";
-				_configScope.NodeContext = xmlNode; // A select node
+            #region Select tag
+            Select select;
+            foreach (XmlNode xmlNode in _configScope.SqlMapDocument.SelectNodes(ApplyMappingNamespacePrefix(XML_SELECT), _configScope.XmlNamespaceManager))
+            {
+                _configScope.ErrorContext.MoreInfo = "loading select tag";
+                _configScope.NodeContext = xmlNode; // A select node
 
-				select = SelectDeSerializer.Deserialize(xmlNode, _configScope);
+                select = SelectDeSerializer.Deserialize(xmlNode, _configScope);
                 select.ParameterMapName = _configScope.ApplyNamespace(select.ParameterMapName);
                 //select.ResultMapName = ApplyNamespace( select.ResultMapName );
 
-				if (_configScope.UseStatementNamespaces)
-				{
+                if (_configScope.UseStatementNamespaces)
+                {
                     select.Id = _configScope.ApplyNamespace(select.Id);
-				}
-				_configScope.ErrorContext.ObjectId = select.Id;
-				
-				select.Initialize( _configScope );
+                }
+                _configScope.ErrorContext.ObjectId = select.Id;
 
-				if (select.Generate != null)
-				{
-					GenerateCommandText(_configScope, select);
-				}
-				else
-				{
-					// Build ISql (analyse sql statement)		
-					ProcessSqlStatement( select);
-				}
+                select.Initialize(_configScope);
 
-				// Build MappedStatement
-                MappedStatement mappedStatement = new SelectMappedStatement(_configScope.SqlMapper, select);
+                if (select.Generate != null)
+                {
+                    GenerateCommandText(_configScope, select);
+                }
+                else
+                {
+                    // Build ISql (analyse sql statement)		
+                    ProcessSqlStatement(select);
+                }
+
+                // Build MappedStatement
+                MappedStatement mappedStatement = new SelectMappedStatement(_configScope.SqlMapper, select, _commandFactory, _resultStrategyFactory);
                 IMappedStatement mapStatement = mappedStatement;
                 _configScope.SqlMapper.AddMappedStatement(mapStatement.Id, mapStatement);
-			}
-			#endregion
+            }
+            #endregion
 
-			#region Insert tag
-			Insert insert;
-			foreach (XmlNode xmlNode in _configScope.SqlMapDocument.SelectNodes( ApplyMappingNamespacePrefix(XML_INSERT), _configScope.XmlNamespaceManager))
-			{
-				_configScope.ErrorContext.MoreInfo = "loading insert tag";
-				_configScope.NodeContext = xmlNode; // A insert tag
+            #region Insert tag
+            Insert insert;
+            foreach (XmlNode xmlNode in _configScope.SqlMapDocument.SelectNodes(ApplyMappingNamespacePrefix(XML_INSERT), _configScope.XmlNamespaceManager))
+            {
+                _configScope.ErrorContext.MoreInfo = "loading insert tag";
+                _configScope.NodeContext = xmlNode; // A insert tag
 
-				MappedStatement mappedStatement;
+                MappedStatement mappedStatement;
 
-				insert = InsertDeSerializer.Deserialize(xmlNode, _configScope);
+                insert = InsertDeSerializer.Deserialize(xmlNode, _configScope);
                 insert.ParameterMapName = _configScope.ApplyNamespace(insert.ParameterMapName);
                 //insert.ResultMapName = ApplyNamespace( insert.ResultMapName );
 
-				if (_configScope.UseStatementNamespaces)
-				{
+                if (_configScope.UseStatementNamespaces)
+                {
                     insert.Id = _configScope.ApplyNamespace(insert.Id);
-				}
-				_configScope.ErrorContext.ObjectId = insert.Id;
-				insert.Initialize( _configScope );
+                }
+                _configScope.ErrorContext.ObjectId = insert.Id;
+                insert.Initialize(_configScope);
 
-				// Build ISql (analyse sql command text)
-				if (insert.Generate != null)
-				{
-					GenerateCommandText(_configScope, insert);
-				}
-				else
-				{
-					ProcessSqlStatement( insert);
-				}
+                // Build ISql (analyse sql command text)
+                if (insert.Generate != null)
+                {
+                    GenerateCommandText(_configScope, insert);
+                }
+                else
+                {
+                    ProcessSqlStatement(insert);
+                }
 
-				// Build MappedStatement
-				mappedStatement = new InsertMappedStatement( _configScope.SqlMapper, insert);
+                // Build MappedStatement
+                mappedStatement = new InsertMappedStatement(_configScope.SqlMapper, insert, _commandFactory, _resultStrategyFactory);
 
-				_configScope.SqlMapper.AddMappedStatement(mappedStatement.Id, mappedStatement);
+                _configScope.SqlMapper.AddMappedStatement(mappedStatement.Id, mappedStatement);
 
-				#region statement SelectKey
-				// Set sql statement SelectKey 
-				if (insert.SelectKey != null)
-				{
-					_configScope.ErrorContext.MoreInfo = "loading selectKey tag";
-					_configScope.NodeContext = xmlNode.SelectSingleNode( ApplyMappingNamespacePrefix(XML_SELECTKEY), _configScope.XmlNamespaceManager);
+                #region statement SelectKey
+                // Set sql statement SelectKey 
+                if (insert.SelectKey != null)
+                {
+                    _configScope.ErrorContext.MoreInfo = "loading selectKey tag";
+                    _configScope.NodeContext = xmlNode.SelectSingleNode(ApplyMappingNamespacePrefix(XML_SELECTKEY), _configScope.XmlNamespaceManager);
 
-					insert.SelectKey.Id = insert.Id;
-					insert.SelectKey.Initialize( _configScope );
-					insert.SelectKey.Id += DOT + "SelectKey";
+                    insert.SelectKey.Id = insert.Id;
+                    insert.SelectKey.Initialize(_configScope);
+                    insert.SelectKey.Id += DOT + "SelectKey";
 
-					// Initialize can also use _configScope.ErrorContext.ObjectId to get the id
-					// of the parent <select> node
-					// insert.SelectKey.Initialize( _configScope );
-					// insert.SelectKey.Id = insert.Id + DOT + "SelectKey";
+                    // Initialize can also use _configScope.ErrorContext.ObjectId to get the id
+                    // of the parent <select> node
+                    // insert.SelectKey.Initialize( _configScope );
+                    // insert.SelectKey.Id = insert.Id + DOT + "SelectKey";
 
-					ProcessSqlStatement(insert.SelectKey);
-					
-					// Build MappedStatement
-					mappedStatement = new MappedStatement( _configScope.SqlMapper, insert.SelectKey);
+                    ProcessSqlStatement(insert.SelectKey);
 
-					_configScope.SqlMapper.AddMappedStatement(mappedStatement.Id, mappedStatement);
-				}
-				#endregion
-			}
-			#endregion
+                    // Build MappedStatement
+                    mappedStatement = new MappedStatement(_configScope.SqlMapper, insert.SelectKey, _commandFactory, _resultStrategyFactory);
 
-			#region Update tag
-			Update update;
-			foreach (XmlNode xmlNode in _configScope.SqlMapDocument.SelectNodes( ApplyMappingNamespacePrefix(XML_UPDATE), _configScope.XmlNamespaceManager))
-			{
-				_configScope.ErrorContext.MoreInfo = "loading update tag";
-				_configScope.NodeContext = xmlNode; // A update tag
+                    _configScope.SqlMapper.AddMappedStatement(mappedStatement.Id, mappedStatement);
+                }
+                #endregion
+            }
+            #endregion
 
-				MappedStatement mappedStatement;
+            #region Update tag
+            Update update;
+            foreach (XmlNode xmlNode in _configScope.SqlMapDocument.SelectNodes(ApplyMappingNamespacePrefix(XML_UPDATE), _configScope.XmlNamespaceManager))
+            {
+                _configScope.ErrorContext.MoreInfo = "loading update tag";
+                _configScope.NodeContext = xmlNode; // A update tag
 
-				update = UpdateDeSerializer.Deserialize(xmlNode, _configScope);
+                MappedStatement mappedStatement;
+
+                update = UpdateDeSerializer.Deserialize(xmlNode, _configScope);
                 update.ParameterMapName = _configScope.ApplyNamespace(update.ParameterMapName);
                 //update.ResultMapName = ApplyNamespace( update.ResultMapName );
 
-				if (_configScope.UseStatementNamespaces)
-				{
+                if (_configScope.UseStatementNamespaces)
+                {
                     update.Id = _configScope.ApplyNamespace(update.Id);
-				}
-				_configScope.ErrorContext.ObjectId = update.Id;
-				update.Initialize( _configScope );
+                }
+                _configScope.ErrorContext.ObjectId = update.Id;
+                update.Initialize(_configScope);
 
-				// Build ISql (analyse sql statement)	
-				if (update.Generate != null)
-				{
-					GenerateCommandText(_configScope, update);
-				}
-				else
-				{
-					// Build ISql (analyse sql statement)		
-					ProcessSqlStatement(update);
-				}	
+                // Build ISql (analyse sql statement)	
+                if (update.Generate != null)
+                {
+                    GenerateCommandText(_configScope, update);
+                }
+                else
+                {
+                    // Build ISql (analyse sql statement)		
+                    ProcessSqlStatement(update);
+                }
 
-				// Build MappedStatement
-				mappedStatement = new UpdateMappedStatement( _configScope.SqlMapper, update);
+                // Build MappedStatement
+                mappedStatement = new UpdateMappedStatement(_configScope.SqlMapper, update, _commandFactory, _resultStrategyFactory);
 
-				_configScope.SqlMapper.AddMappedStatement(mappedStatement.Id, mappedStatement);
-			}
-			#endregion
+                _configScope.SqlMapper.AddMappedStatement(mappedStatement.Id, mappedStatement);
+            }
+            #endregion
 
-			#region Delete tag
-			Delete delete;
-			foreach (XmlNode xmlNode in _configScope.SqlMapDocument.SelectNodes( ApplyMappingNamespacePrefix(XML_DELETE), _configScope.XmlNamespaceManager))
-			{
-				_configScope.ErrorContext.MoreInfo = "loading delete tag";
-				_configScope.NodeContext = xmlNode; // A delete tag
-				MappedStatement mappedStatement;
+            #region Delete tag
+            Delete delete;
+            foreach (XmlNode xmlNode in _configScope.SqlMapDocument.SelectNodes(ApplyMappingNamespacePrefix(XML_DELETE), _configScope.XmlNamespaceManager))
+            {
+                _configScope.ErrorContext.MoreInfo = "loading delete tag";
+                _configScope.NodeContext = xmlNode; // A delete tag
+                MappedStatement mappedStatement;
 
-				delete = DeleteDeSerializer.Deserialize(xmlNode, _configScope);
+                delete = DeleteDeSerializer.Deserialize(xmlNode, _configScope);
                 delete.ParameterMapName = _configScope.ApplyNamespace(delete.ParameterMapName);
                 //delete.ResultMapName = ApplyNamespace( delete.ResultMapName );
 
-				if (_configScope.UseStatementNamespaces)
-				{
+                if (_configScope.UseStatementNamespaces)
+                {
                     delete.Id = _configScope.ApplyNamespace(delete.Id);
-				}
-				_configScope.ErrorContext.ObjectId = delete.Id;
-				delete.Initialize( _configScope );
+                }
+                _configScope.ErrorContext.ObjectId = delete.Id;
+                delete.Initialize(_configScope);
 
-				// Build ISql (analyse sql statement)
-				if (delete.Generate != null)
-				{
-					GenerateCommandText(_configScope, delete);
-				}
-				else
-				{
-					// Build ISql (analyse sql statement)		
-					ProcessSqlStatement(delete);
-				}	
+                // Build ISql (analyse sql statement)
+                if (delete.Generate != null)
+                {
+                    GenerateCommandText(_configScope, delete);
+                }
+                else
+                {
+                    // Build ISql (analyse sql statement)		
+                    ProcessSqlStatement(delete);
+                }
 
-				// Build MappedStatement
-				mappedStatement = new DeleteMappedStatement( _configScope.SqlMapper, delete);
+                // Build MappedStatement
+                mappedStatement = new DeleteMappedStatement(_configScope.SqlMapper, delete, _commandFactory, _resultStrategyFactory);
 
-				_configScope.SqlMapper.AddMappedStatement(mappedStatement.Id, mappedStatement);
-			}
-			#endregion
+                _configScope.SqlMapper.AddMappedStatement(mappedStatement.Id, mappedStatement);
+            }
+            #endregion
 
-			#region Procedure tag
-			Procedure procedure;
-			foreach (XmlNode xmlNode in _configScope.SqlMapDocument.SelectNodes( ApplyMappingNamespacePrefix(XML_PROCEDURE), _configScope.XmlNamespaceManager))
-			{
-				_configScope.ErrorContext.MoreInfo = "loading procedure tag";
-				_configScope.NodeContext = xmlNode; // A procedure tag
+            #region Procedure tag
+            Procedure procedure;
+            foreach (XmlNode xmlNode in _configScope.SqlMapDocument.SelectNodes(ApplyMappingNamespacePrefix(XML_PROCEDURE), _configScope.XmlNamespaceManager))
+            {
+                _configScope.ErrorContext.MoreInfo = "loading procedure tag";
+                _configScope.NodeContext = xmlNode; // A procedure tag
 
-				procedure = ProcedureDeSerializer.Deserialize(xmlNode, _configScope);
+                procedure = ProcedureDeSerializer.Deserialize(xmlNode, _configScope);
                 procedure.ParameterMapName = _configScope.ApplyNamespace(procedure.ParameterMapName);
                 //procedure.ResultMapName = ApplyNamespace( procedure.ResultMapName );
 
-				if (_configScope.UseStatementNamespaces)
-				{
+                if (_configScope.UseStatementNamespaces)
+                {
                     procedure.Id = _configScope.ApplyNamespace(procedure.Id);
-				}
-				_configScope.ErrorContext.ObjectId = procedure.Id;
-				procedure.Initialize( _configScope );
+                }
+                _configScope.ErrorContext.ObjectId = procedure.Id;
+                procedure.Initialize(_configScope);
 
-				// Build ISql (analyse sql command text)
-				ProcessSqlStatement( procedure );
+                // Build ISql (analyse sql command text)
+                ProcessSqlStatement(procedure);
 
-				// Build MappedStatement
-                MappedStatement mappedStatement = new MappedStatement(_configScope.SqlMapper, procedure);
-                IMappedStatement mapStatement = mappedStatement;		    
+                // Build MappedStatement
+                MappedStatement mappedStatement = new MappedStatement(_configScope.SqlMapper, procedure, _commandFactory, _resultStrategyFactory);
+                IMappedStatement mapStatement = mappedStatement;
                 _configScope.SqlMapper.AddMappedStatement(mapStatement.Id, mapStatement);
-			}
-			#endregion
+            }
+            #endregion
 
-			#endregion
-			
-
-			_configScope.ErrorContext.Reset();
-		}
+            #endregion
 
 
-		/// <summary>
-		/// Process the Sql Statement
-		/// </summary>
-		/// <param name="statement"></param>
-		private void ProcessSqlStatement( IStatement statement )
-		{
-			bool isDynamic = false;
-			XmlNode commandTextNode = _configScope.NodeContext;
-			DynamicSql dynamic = new DynamicSql( _configScope,  statement );
-			StringBuilder sqlBuffer = new StringBuilder();
+            _configScope.ErrorContext.Reset();
+        }
 
-			if (statement.Id=="DynamicJIRA")
-			{
-				Console.Write("tt");
-			}
-			
-			_configScope.ErrorContext.MoreInfo = "process the Sql statement";
 
-			// Resolve "extend" attribute on Statement
-			if (statement.ExtendStatement.Length >0)
-			{
-				// Find 'super' statement
-				XmlNode supperStatementNode = _configScope.SqlMapDocument.SelectSingleNode( ApplyMappingNamespacePrefix(XML_SEARCH_STATEMENT)+"/child::*[@id='"+statement.ExtendStatement+"']",_configScope.XmlNamespaceManager );
-				if (supperStatementNode!=null)
-				{
-					commandTextNode.InnerXml = supperStatementNode.InnerXml + commandTextNode.InnerXml;
-				}
-				else
-				{
-					throw new ConfigurationException("Unable to find extend statement named '"+statement.ExtendStatement+"' on statement '"+statement.Id+"'.'");
-				}
-			}
+        /// <summary>
+        /// Process the Sql Statement
+        /// </summary>
+        /// <param name="statement"></param>
+        private void ProcessSqlStatement(IStatement statement)
+        {
+            bool isDynamic = false;
+            XmlNode commandTextNode = _configScope.NodeContext;
+            DynamicSql dynamic = new DynamicSql(_configScope, statement, _loggerFactory);
+            StringBuilder sqlBuffer = new StringBuilder();
 
-			_configScope.ErrorContext.MoreInfo = "parse dynamic tags on sql statement";
+            if (statement.Id == "DynamicJIRA")
+            {
+                Console.Write("tt");
+            }
 
-			isDynamic = ParseDynamicTags( commandTextNode, dynamic, sqlBuffer, isDynamic, false, statement);
+            _configScope.ErrorContext.MoreInfo = "process the Sql statement";
 
-			if (isDynamic) 
-			{
-				statement.Sql = dynamic;
-			} 
-			else 
-			{	
-				string sqlText = sqlBuffer.ToString();
-				ApplyInlineParemeterMap( statement, sqlText);
-			}
-		}
+            // Resolve "extend" attribute on Statement
+            if (statement.ExtendStatement.Length > 0)
+            {
+                // Find 'super' statement
+                XmlNode supperStatementNode = _configScope.SqlMapDocument.SelectSingleNode(ApplyMappingNamespacePrefix(XML_SEARCH_STATEMENT) + "/child::*[@id='" + statement.ExtendStatement + "']", _configScope.XmlNamespaceManager);
+                if (supperStatementNode != null)
+                {
+                    commandTextNode.InnerXml = supperStatementNode.InnerXml + commandTextNode.InnerXml;
+                }
+                else
+                {
+                    throw new ConfigurationException("Unable to find extend statement named '" + statement.ExtendStatement + "' on statement '" + statement.Id + "'.'");
+                }
+            }
 
-				
-		/// <summary>
-		/// Parse dynamic tags
-		/// </summary>
-		/// <param name="commandTextNode"></param>
-		/// <param name="dynamic"></param>
-		/// <param name="sqlBuffer"></param>
-		/// <param name="isDynamic"></param>
-		/// <param name="postParseRequired"></param>
-		/// <param name="statement"></param>
-		/// <returns></returns>
-		private bool ParseDynamicTags( XmlNode commandTextNode, IDynamicParent dynamic, 
-			StringBuilder sqlBuffer, bool isDynamic, bool postParseRequired, IStatement statement) 
-		{
-			XmlNodeList children = commandTextNode.ChildNodes;
-			int count = children.Count;
-			for (int i = 0; i < count; i++) 
-			{
-				XmlNode child = children[i];
-				if ( (child.NodeType == XmlNodeType.CDATA) || (child.NodeType == XmlNodeType.Text) )
-				{
-					string data = child.InnerText.Replace('\n', ' ').Replace('\r', ' ').Replace('\t', ' '); //??
+            _configScope.ErrorContext.MoreInfo = "parse dynamic tags on sql statement";
 
-					data = NodeUtils.ParsePropertyTokens(data, _configScope.Properties);
+            isDynamic = ParseDynamicTags(commandTextNode, dynamic, sqlBuffer, isDynamic, false, statement);
 
-					SqlText sqlText;
-					if (postParseRequired) 
-					{
-						sqlText = new SqlText();
-						sqlText.Text = data.ToString();
-					} 
-					else 
-					{
-						sqlText = _paramParser.ParseInlineParameterMap(_configScope, null, data );
-					}
+            if (isDynamic)
+            {
+                statement.Sql = dynamic;
+            }
+            else
+            {
+                string sqlText = sqlBuffer.ToString();
+                ApplyInlineParameterMap(statement, sqlText);
+            }
+        }
 
-					dynamic.AddChild(sqlText);
-					sqlBuffer.Append(data);
-				}
+
+        /// <summary>
+        /// Parse dynamic tags
+        /// </summary>
+        /// <param name="commandTextNode"></param>
+        /// <param name="dynamic"></param>
+        /// <param name="sqlBuffer"></param>
+        /// <param name="isDynamic"></param>
+        /// <param name="postParseRequired"></param>
+        /// <param name="statement"></param>
+        /// <returns></returns>
+        private bool ParseDynamicTags(XmlNode commandTextNode, IDynamicParent dynamic,
+            StringBuilder sqlBuffer, bool isDynamic, bool postParseRequired, IStatement statement)
+        {
+            XmlNodeList children = commandTextNode.ChildNodes;
+            int count = children.Count;
+            for (int i = 0; i < count; i++)
+            {
+                XmlNode child = children[i];
+                if ((child.NodeType == XmlNodeType.CDATA) || (child.NodeType == XmlNodeType.Text))
+                {
+                    string data = child.InnerText.Replace('\n', ' ').Replace('\r', ' ').Replace('\t', ' '); //??
+
+                    data = NodeUtils.ParsePropertyTokens(data, _configScope.Properties);
+
+                    SqlText sqlText;
+                    if (postParseRequired)
+                    {
+                        sqlText = new SqlText();
+                        sqlText.Text = data.ToString();
+                    }
+                    else
+                    {
+                        sqlText = _paramParser.ParseInlineParameterMap(_configScope, null, data);
+                    }
+
+                    dynamic.AddChild(sqlText);
+                    sqlBuffer.Append(data);
+                }
                 else if (child.Name == "include")
-				{
+                {
                     NameValueCollection prop = NodeUtils.ParseAttributes(child, _configScope.Properties);
                     string refid = NodeUtils.GetStringAttribute(prop, "refid");
                     XmlNode includeNode = (XmlNode)_configScope.SqlIncludes[refid];
@@ -1396,321 +1223,321 @@ namespace SqlBatis.DataMapper.Configuration
                         }
                     }
                     isDynamic = ParseDynamicTags(includeNode, dynamic, sqlBuffer, isDynamic, false, statement);
-				}
-				else
-				{
-					string nodeName = child.Name;
-					IDeSerializer serializer = _deSerializerFactory.GetDeSerializer(nodeName);
+                }
+                else
+                {
+                    string nodeName = child.Name;
+                    IDeSerializer serializer = _deSerializerFactory.GetDeSerializer(nodeName);
 
-					if (serializer != null) 
-					{
-						isDynamic = true;
-						SqlTag tag;
+                    if (serializer != null)
+                    {
+                        isDynamic = true;
+                        SqlTag tag;
 
-						tag = serializer.Deserialize(child);
+                        tag = serializer.Deserialize(child);
 
-						dynamic.AddChild(tag);
+                        dynamic.AddChild(tag);
 
-						if (child.HasChildNodes) 
-						{
-							isDynamic = ParseDynamicTags( child, tag, sqlBuffer, isDynamic, tag.Handler.IsPostParseRequired, statement );
-						}
-					}
-				}
-			}
+                        if (child.HasChildNodes)
+                        {
+                            isDynamic = ParseDynamicTags(child, tag, sqlBuffer, isDynamic, tag.Handler.IsPostParseRequired, statement);
+                        }
+                    }
+                }
+            }
 
-			return isDynamic;
-		}
-
-
-		#region Inline Parameter parsing
-
-		/// <summary>
-		/// Apply inline paremeterMap
-		/// </summary>
-		/// <param name="statement"></param>
-		/// <param name="sqlStatement"></param>
-		private void ApplyInlineParemeterMap( IStatement statement, string sqlStatement)
-		{
-			string newSql = sqlStatement;
-
-			_configScope.ErrorContext.MoreInfo = "apply inline parameterMap";
-
-			// Check the inline parameter
-			if (statement.ParameterMap == null)
-			{
-				// Build a Parametermap with the inline parameters.
-				// if they exist. Then delete inline infos from sqltext.
-				
-				SqlText sqlText = _paramParser.ParseInlineParameterMap(_configScope,  statement, newSql );
-
-				if (sqlText.Parameters.Length > 0)
-				{
-					ParameterMap map = new ParameterMap(_configScope.DataExchangeFactory);
-					map.Id = statement.Id + "-InLineParameterMap";
-					if (statement.ParameterClass!=null)
-					{
-						map.Class = statement.ParameterClass;
-					}
-					map.Initialize(_configScope.DataSource.DbProvider.UsePositionalParameters,_configScope);
-					if (statement.ParameterClass==null && 
-						sqlText.Parameters.Length==1 && sqlText.Parameters[0].PropertyName=="value")//#value# parameter with no parameterClass attribut
-					{
-						map.DataExchange = _configScope.DataExchangeFactory.GetDataExchangeForClass( typeof(int) );//Get the primitiveDataExchange
-					}
-					statement.ParameterMap = map;	
-				
-					int lenght = sqlText.Parameters.Length;
-					for(int index=0;index<lenght;index++)
-					{
-						map.AddParameterProperty( sqlText.Parameters[index] );
-					}
-				}
-				newSql = sqlText.Text;
-			}
-
-			ISql sql = null;
-
-			newSql = newSql.Trim();
-
-			if (SimpleDynamicSql.IsSimpleDynamicSql(newSql)) 
-			{
-				sql = new SimpleDynamicSql(_configScope, newSql, statement);
-			} 
-			else 
-			{
-				if (statement is Procedure)
-				{
-					sql = new ProcedureSql(_configScope, newSql, statement);
-					// Could not call BuildPreparedStatement for procedure because when NUnit Test
-					// the database is not here (but in theory procedure must be prepared like statement)
-					// It's even better as we can then switch DataSource.
-				}
-				else if (statement is Statement)
-				{
-					sql = new StaticSql(_configScope, statement);
-					ISqlMapSession session = new SqlMapSession(_configScope.SqlMapper);
-
-					((StaticSql)sql).BuildPreparedStatement( session, newSql );
-				}					
-			}
-			statement.Sql = sql;
-		}
-
-		#endregion
-
-		
-		/// <summary>
-		/// Initialize the list of variables defined in the
-		/// properties file.
-		/// </summary>
-		private void ParseGlobalProperties()
-		{
-			XmlNode nodeProperties = _configScope.NodeContext.SelectSingleNode( ApplyDataMapperNamespacePrefix(XML_PROPERTIES), _configScope.XmlNamespaceManager);
-			_configScope.ErrorContext.Activity = "loading global properties";
-			
-			if (nodeProperties != null)
-			{
-				if (nodeProperties.HasChildNodes)
-				{
-					foreach (XmlNode propertyNode in nodeProperties.SelectNodes( ApplyDataMapperNamespacePrefix(XML_PROPERTY), _configScope.XmlNamespaceManager))
-					{
-						XmlAttribute keyAttrib = propertyNode.Attributes[PROPERTY_ELEMENT_KEY_ATTRIB];
-						XmlAttribute valueAttrib = propertyNode.Attributes[PROPERTY_ELEMENT_VALUE_ATTRIB];
-
-						if ( keyAttrib != null && valueAttrib!=null)
-						{
-							_configScope.Properties.Add( keyAttrib.Value,  valueAttrib.Value);
-
-							if (Logger.IsDebugEnabled)
-							{
-								Logger.Debug( string.Format("Add property \"{0}\" value \"{1}\"",keyAttrib.Value,valueAttrib.Value) );
-							}
-						}
-						else
-						{
-							// Load the file defined by the attribute
-							XmlDocument propertiesConfig = Resources.GetAsXmlDocument(propertyNode, _configScope.Properties); 
-							
-							foreach (XmlNode node in propertiesConfig.SelectNodes( XML_GLOBAL_PROPERTIES, _configScope.XmlNamespaceManager))
-							{
-								_configScope.Properties[node.Attributes[PROPERTY_ELEMENT_KEY_ATTRIB].Value] = node.Attributes[PROPERTY_ELEMENT_VALUE_ATTRIB].Value;
-
-								if (Logger.IsDebugEnabled)
-								{
-									Logger.Debug( string.Format("Add property \"{0}\" value \"{1}\"",node.Attributes[PROPERTY_ELEMENT_KEY_ATTRIB].Value,node.Attributes[PROPERTY_ELEMENT_VALUE_ATTRIB].Value) );
-								}
-							}
-						}
-					}
-				}
-				else
-				{
-					// JIRA-38 Fix 
-					// <properties> element's InnerXml is currently an empty string anyway
-					// since <settings> are in properties file
-
-					_configScope.ErrorContext.Resource = nodeProperties.OuterXml.ToString();
-
-					// Load the file defined by the attribute
-					XmlDocument propertiesConfig = Resources.GetAsXmlDocument(nodeProperties, _configScope.Properties); 
-
-					foreach (XmlNode node in propertiesConfig.SelectNodes( XML_SETTINGS_ADD ) )
-					{
-						_configScope.Properties[node.Attributes[PROPERTY_ELEMENT_KEY_ATTRIB].Value] = node.Attributes[PROPERTY_ELEMENT_VALUE_ATTRIB].Value;
-
-						if (Logger.IsDebugEnabled)
-						{
-							Logger.Debug( string.Format("Add property \"{0}\" value \"{1}\"",node.Attributes[PROPERTY_ELEMENT_KEY_ATTRIB].Value,node.Attributes[PROPERTY_ELEMENT_VALUE_ATTRIB].Value) );
-						}
-					}					
-				}
-			}
-			_configScope.ErrorContext.Reset();
-		}
+            return isDynamic;
+        }
 
 
+        #region Inline Parameter parsing
 
-		/// <summary>
-		/// Generate the command text for CRUD operation
-		/// </summary>
-		/// <param name="configScope"></param>
-		/// <param name="statement"></param>
-		private void GenerateCommandText(ConfigurationScope configScope, IStatement statement)
-		{
-			string generatedSQL;
+        /// <summary>
+        /// Apply inline paremeterMap
+        /// </summary>
+        /// <param name="statement"></param>
+        /// <param name="sqlStatement"></param>
+        private void ApplyInlineParameterMap(IStatement statement, string sqlStatement)
+        {
+            string newSql = sqlStatement;
 
-			//------ Build SQL CommandText
-			generatedSQL = SqlGenerator.BuildQuery(statement);
+            _configScope.ErrorContext.MoreInfo = "apply inline parameterMap";
 
-			ISql sql = new StaticSql(configScope, statement);
-			ISqlMapSession session = new SqlMapSession(configScope.SqlMapper);
+            // Check the inline parameter
+            if (statement.ParameterMap == null)
+            {
+                // Build a Parametermap with the inline parameters.
+                // if they exist. Then delete inline infos from sqltext.
 
-			((StaticSql)sql).BuildPreparedStatement( session, generatedSQL );
-			statement.Sql = sql;
-		}
+                SqlText sqlText = _paramParser.ParseInlineParameterMap(_configScope, statement, newSql);
 
-		
-		/// <summary>
-		/// Build a ParameterMap
-		/// </summary>
-		private void BuildParameterMap()
-		 {
-			ParameterMap parameterMap;
-			XmlNode parameterMapNode = _configScope.NodeContext;
+                if (sqlText.Parameters.Length > 0)
+                {
+                    ParameterMap map = new ParameterMap(_configScope.DataExchangeFactory);
+                    map.Id = statement.Id + "-InLineParameterMap";
+                    if (statement.ParameterClass != null)
+                    {
+                        map.Class = statement.ParameterClass;
+                    }
+                    map.Initialize(_configScope.SqlMapper.DataSource.DbProvider.UsePositionalParameters, _configScope);
+                    if (statement.ParameterClass == null &&
+                        sqlText.Parameters.Length == 1 && sqlText.Parameters[0].PropertyName == "value")//#value# parameter with no parameterClass attribut
+                    {
+                        map.DataExchange = _configScope.DataExchangeFactory.GetDataExchangeForClass(typeof(int));//Get the primitiveDataExchange
+                    }
+                    statement.ParameterMap = map;
 
-			_configScope.ErrorContext.MoreInfo = "build ParameterMap";
+                    int lenght = sqlText.Parameters.Length;
+                    for (int index = 0; index < lenght; index++)
+                    {
+                        map.AddParameterProperty(sqlText.Parameters[index]);
+                    }
+                }
+                newSql = sqlText.Text;
+            }
 
-			// Get the parameterMap id
+            ISql sql = null;
+
+            newSql = newSql.Trim();
+
+            if (SimpleDynamicSql.IsSimpleDynamicSql(newSql))
+            {
+                sql = new SimpleDynamicSql(_configScope, newSql, statement, _loggerFactory);
+            }
+            else
+            {
+                if (statement is Procedure)
+                {
+                    sql = new ProcedureSql(_configScope, newSql, statement, _loggerFactory);
+                    // Could not call BuildPreparedStatement for procedure because when NUnit Test
+                    // the database is not here (but in theory procedure must be prepared like statement)
+                    // It's even better as we can then switch DataSource.
+                }
+                else if (statement is Statement)
+                {
+                    sql = new StaticSql(_configScope, statement, _loggerFactory);
+                    ISqlMapSession session = new SqlMapSession(_configScope.SqlMapper, _loggerFactory.CreateLogger<SqlMapSession>());
+
+                    ((StaticSql)sql).BuildPreparedStatement(session, newSql);
+                }
+            }
+            statement.Sql = sql;
+        }
+
+        #endregion
+
+
+        /// <summary>
+        /// Initialize the list of variables defined in the
+        /// properties file.
+        /// </summary>
+        private void ParseGlobalProperties()
+        {
+            XmlNode nodeProperties = _configScope.NodeContext.SelectSingleNode(ApplyDataMapperNamespacePrefix(XML_PROPERTIES), _configScope.XmlNamespaceManager);
+            _configScope.ErrorContext.Activity = "loading global properties";
+
+            if (nodeProperties != null)
+            {
+                if (nodeProperties.HasChildNodes)
+                {
+                    foreach (XmlNode propertyNode in nodeProperties.SelectNodes(ApplyDataMapperNamespacePrefix(XML_PROPERTY), _configScope.XmlNamespaceManager))
+                    {
+                        XmlAttribute keyAttrib = propertyNode.Attributes[PROPERTY_ELEMENT_KEY_ATTRIB];
+                        XmlAttribute valueAttrib = propertyNode.Attributes[PROPERTY_ELEMENT_VALUE_ATTRIB];
+
+                        if (keyAttrib != null && valueAttrib != null)
+                        {
+                            _configScope.Properties.Add(keyAttrib.Value, valueAttrib.Value);
+
+                            if (_logger.IsEnabled(LogLevel.Debug))
+                            {
+                                _logger.LogDebug("Add property \"{Key}\" value \"{Value}\"", keyAttrib.Value, valueAttrib.Value);
+                            }
+                        }
+                        else
+                        {
+                            // Load the file defined by the attribute
+                            XmlDocument propertiesConfig = Resources.GetAsXmlDocument(propertyNode, _configScope.Properties);
+
+                            foreach (XmlNode node in propertiesConfig.SelectNodes(XML_GLOBAL_PROPERTIES, _configScope.XmlNamespaceManager))
+                            {
+                                _configScope.Properties[node.Attributes[PROPERTY_ELEMENT_KEY_ATTRIB].Value] = node.Attributes[PROPERTY_ELEMENT_VALUE_ATTRIB].Value;
+
+                                if (_logger.IsEnabled(LogLevel.Debug))
+                                {
+                                    _logger.LogDebug("Add property \"{Key}\" value \"{Value}\"", node.Attributes[PROPERTY_ELEMENT_KEY_ATTRIB].Value, node.Attributes[PROPERTY_ELEMENT_VALUE_ATTRIB].Value);
+                                }
+                            }
+                        }
+                    }
+                }
+                else
+                {
+                    // JIRA-38 Fix 
+                    // <properties> element's InnerXml is currently an empty string anyway
+                    // since <settings> are in properties file
+
+                    _configScope.ErrorContext.Resource = nodeProperties.OuterXml;
+
+                    // Load the file defined by the attribute
+                    XmlDocument propertiesConfig = Resources.GetAsXmlDocument(nodeProperties, _configScope.Properties);
+
+                    foreach (XmlNode node in propertiesConfig.SelectNodes(XML_SETTINGS_ADD))
+                    {
+                        _configScope.Properties[node.Attributes[PROPERTY_ELEMENT_KEY_ATTRIB].Value] = node.Attributes[PROPERTY_ELEMENT_VALUE_ATTRIB].Value;
+
+                        if (_logger.IsEnabled(LogLevel.Debug))
+                        {
+                            _logger.LogDebug("Add property \"{Key}\" value \"{Value}\"", node.Attributes[PROPERTY_ELEMENT_KEY_ATTRIB].Value, node.Attributes[PROPERTY_ELEMENT_VALUE_ATTRIB].Value);
+                        }
+                    }
+                }
+            }
+            _configScope.ErrorContext.Reset();
+        }
+
+
+
+        /// <summary>
+        /// Generate the command text for CRUD operation
+        /// </summary>
+        /// <param name="configScope"></param>
+        /// <param name="statement"></param>
+        private void GenerateCommandText(ConfigurationScope configScope, IStatement statement)
+        {
+            string generatedSQL;
+
+            //------ Build SQL CommandText
+            generatedSQL = SqlGenerator.BuildQuery(statement);
+
+            ISql sql = new StaticSql(configScope, statement, _loggerFactory);
+            ISqlMapSession session = new SqlMapSession(configScope.SqlMapper, _loggerFactory.CreateLogger<SqlMapSession>());
+
+            ((StaticSql)sql).BuildPreparedStatement(session, generatedSQL);
+            statement.Sql = sql;
+        }
+
+
+        /// <summary>
+        /// Build a ParameterMap
+        /// </summary>
+        private void BuildParameterMap()
+        {
+            ParameterMap parameterMap;
+            XmlNode parameterMapNode = _configScope.NodeContext;
+
+            _configScope.ErrorContext.MoreInfo = "build ParameterMap";
+
+            // Get the parameterMap id
             string id = _configScope.ApplyNamespace((parameterMapNode.Attributes.GetNamedItem("id")).Value);
-			_configScope.ErrorContext.ObjectId = id;
+            _configScope.ErrorContext.ObjectId = id;
 
-			// Did we already process it ?
-			if (_configScope.SqlMapper.ParameterMaps.Contains( id ) == false)
-			{
-				parameterMap = ParameterMapDeSerializer.Deserialize(parameterMapNode, _configScope);
+            // Did we already process it ?
+            if (_configScope.SqlMapper.ParameterMaps.Contains(id) == false)
+            {
+                parameterMap = ParameterMapDeSerializer.Deserialize(parameterMapNode, _configScope);
 
                 parameterMap.Id = _configScope.ApplyNamespace(parameterMap.Id);
-				string attributeExtendMap = parameterMap.ExtendMap;
+                string attributeExtendMap = parameterMap.ExtendMap;
                 parameterMap.ExtendMap = _configScope.ApplyNamespace(parameterMap.ExtendMap);
 
-				if (parameterMap.ExtendMap.Length >0)
-				{
-					ParameterMap superMap;
-					// Did we already build Extend ParameterMap ?
-					if (_configScope.SqlMapper.ParameterMaps.Contains( parameterMap.ExtendMap ) == false)
-					{
+                if (parameterMap.ExtendMap.Length > 0)
+                {
+                    ParameterMap superMap;
+                    // Did we already build Extend ParameterMap ?
+                    if (_configScope.SqlMapper.ParameterMaps.Contains(parameterMap.ExtendMap) == false)
+                    {
                         XmlNode superNode = _configScope.SqlMapDocument.SelectSingleNode(ApplyMappingNamespacePrefix(XML_SEARCH_PARAMETER) + attributeExtendMap + "']", _configScope.XmlNamespaceManager);
 
-						if (superNode != null)
-						{
-							_configScope.ErrorContext.MoreInfo = "Build parent ParameterMap";
-							_configScope.NodeContext = superNode;
-							BuildParameterMap();
-							superMap = _configScope.SqlMapper.GetParameterMap( parameterMap.ExtendMap );
-						}
-						else
-						{
-							throw new ConfigurationException("In mapping file '"+ _configScope.SqlMapNamespace +"' the parameterMap '"+parameterMap.Id+"' can not resolve extends attribute '"+parameterMap.ExtendMap+"'");
-						}
-					}
-					else
-					{
-						superMap = _configScope.SqlMapper.GetParameterMap( parameterMap.ExtendMap );
-					}
-					// Add extends property
-					int index = 0;
+                        if (superNode != null)
+                        {
+                            _configScope.ErrorContext.MoreInfo = "Build parent ParameterMap";
+                            _configScope.NodeContext = superNode;
+                            BuildParameterMap();
+                            superMap = _configScope.SqlMapper.GetParameterMap(parameterMap.ExtendMap);
+                        }
+                        else
+                        {
+                            throw new ConfigurationException("In mapping file '" + _configScope.SqlMapNamespace + "' the parameterMap '" + parameterMap.Id + "' can not resolve extends attribute '" + parameterMap.ExtendMap + "'");
+                        }
+                    }
+                    else
+                    {
+                        superMap = _configScope.SqlMapper.GetParameterMap(parameterMap.ExtendMap);
+                    }
+                    // Add extends property
+                    int index = 0;
 
-					foreach(string propertyName in superMap.GetPropertyNameArray())
-					{
+                    foreach (string propertyName in superMap.GetPropertyNameArray())
+                    {
                         ParameterProperty property = superMap.GetProperty(propertyName).Clone();
                         property.Initialize(_configScope, parameterMap.Class);
                         parameterMap.InsertParameterProperty(index, property);
-						index++;
-					}
-				}
-				_configScope.SqlMapper.AddParameterMap( parameterMap );
-			}
-		}
+                        index++;
+                    }
+                }
+                _configScope.SqlMapper.AddParameterMap(parameterMap);
+            }
+        }
 
 
-		/// <summary>
-		/// Build a ResultMap
-		/// </summary>
-		private void BuildResultMap()
-		 {
-			ResultMap resultMap;
-			XmlNode resultMapNode = _configScope.NodeContext;
+        /// <summary>
+        /// Build a ResultMap
+        /// </summary>
+        private void BuildResultMap()
+        {
+            ResultMap resultMap;
+            XmlNode resultMapNode = _configScope.NodeContext;
 
-			_configScope.ErrorContext.MoreInfo = "build ResultMap";
+            _configScope.ErrorContext.MoreInfo = "build ResultMap";
 
             string id = _configScope.ApplyNamespace((resultMapNode.Attributes.GetNamedItem("id")).Value);
-			_configScope.ErrorContext.ObjectId = id;
+            _configScope.ErrorContext.ObjectId = id;
 
-			// Did we alredy process it
-			if (_configScope.SqlMapper.ResultMaps.Contains( id ) == false)
-			{
-				resultMap =  ResultMapDeSerializer.Deserialize( resultMapNode, _configScope );
+            // Did we alredy process it
+            if (_configScope.SqlMapper.ResultMaps.Contains(id) == false)
+            {
+                resultMap = ResultMapDeSerializer.Deserialize(resultMapNode, _configScope);
 
-				string attributeExtendMap = resultMap.ExtendMap;
+                string attributeExtendMap = resultMap.ExtendMap;
                 resultMap.ExtendMap = _configScope.ApplyNamespace(resultMap.ExtendMap);
 
-				if (resultMap.ExtendMap!=null && resultMap.ExtendMap.Length >0)
-				{
-					IResultMap superMap = null;			    
-					// Did we already build Extend ResultMap?
-					if (_configScope.SqlMapper.ResultMaps.Contains( resultMap.ExtendMap ) == false)
-					{
-						XmlNode superNode = _configScope.SqlMapDocument.SelectSingleNode( ApplyMappingNamespacePrefix(XML_SEARCH_RESULTMAP)+ attributeExtendMap +"']", _configScope.XmlNamespaceManager);
+                if (resultMap.ExtendMap != null && resultMap.ExtendMap.Length > 0)
+                {
+                    IResultMap superMap = null;
+                    // Did we already build Extend ResultMap?
+                    if (_configScope.SqlMapper.ResultMaps.Contains(resultMap.ExtendMap) == false)
+                    {
+                        XmlNode superNode = _configScope.SqlMapDocument.SelectSingleNode(ApplyMappingNamespacePrefix(XML_SEARCH_RESULTMAP) + attributeExtendMap + "']", _configScope.XmlNamespaceManager);
 
-						if (superNode != null)
-						{
-							_configScope.ErrorContext.MoreInfo = "Build parent ResultMap";
-							_configScope.NodeContext = superNode;
-							BuildResultMap();
-							superMap = _configScope.SqlMapper.GetResultMap( resultMap.ExtendMap );
-						}
-						else
-						{
-							throw new ConfigurationException("In mapping file '"+_configScope.SqlMapNamespace+"' the resultMap '"+resultMap.Id+"' can not resolve extends attribute '"+resultMap.ExtendMap+"'" );
-						}
-					}
-					else
-					{
-						superMap = _configScope.SqlMapper.GetResultMap( resultMap.ExtendMap );
-					}
+                        if (superNode != null)
+                        {
+                            _configScope.ErrorContext.MoreInfo = "Build parent ResultMap";
+                            _configScope.NodeContext = superNode;
+                            BuildResultMap();
+                            superMap = _configScope.SqlMapper.GetResultMap(resultMap.ExtendMap);
+                        }
+                        else
+                        {
+                            throw new ConfigurationException("In mapping file '" + _configScope.SqlMapNamespace + "' the resultMap '" + resultMap.Id + "' can not resolve extends attribute '" + resultMap.ExtendMap + "'");
+                        }
+                    }
+                    else
+                    {
+                        superMap = _configScope.SqlMapper.GetResultMap(resultMap.ExtendMap);
+                    }
 
-					// Add parent property
-					for(int index=0; index< superMap.Properties.Count; index++)
-					{
-						ResultProperty property = superMap.Properties[index].Clone();
+                    // Add parent property
+                    for (int index = 0; index < superMap.Properties.Count; index++)
+                    {
+                        ResultProperty property = superMap.Properties[index].Clone();
                         property.Initialize(_configScope, resultMap.Class);
-						resultMap.Properties.Add(property);
-					}
+                        resultMap.Properties.Add(property);
+                    }
                     // Add groupBy properties
                     if (resultMap.GroupByPropertyNames.Count == 0)
                     {
-                        for(int i=0; i<superMap.GroupByPropertyNames.Count; i++)
+                        for (int i = 0; i < superMap.GroupByPropertyNames.Count; i++)
                         {
                             resultMap.GroupByPropertyNames.Add(superMap.GroupByPropertyNames[i]);
                         }
@@ -1718,18 +1545,18 @@ namespace SqlBatis.DataMapper.Configuration
                     // Add constructor arguments 
                     if (resultMap.Parameters.Count == 0)
                     {
-                       for (int i = 0; i < superMap.Parameters.Count; i++)
-                       {
-                           resultMap.Parameters.Add(superMap.Parameters[i]);
-                       }
-                       if (resultMap.Parameters.Count>0)
-                       {
-                           resultMap.SetObjectFactory(_configScope);
-                       }
+                        for (int i = 0; i < superMap.Parameters.Count; i++)
+                        {
+                            resultMap.Parameters.Add(superMap.Parameters[i]);
+                        }
+                        if (resultMap.Parameters.Count > 0)
+                        {
+                            resultMap.SetObjectFactory(_configScope);
+                        }
                     }
 
 
-				    // Verify that that each groupBy element correspond to a class member
+                    // Verify that that each groupBy element correspond to a class member
                     // of one of result property
                     for (int i = 0; i < resultMap.GroupByPropertyNames.Count; i++)
                     {
@@ -1742,57 +1569,57 @@ namespace SqlBatis.DataMapper.Configuration
                                     resultMap.Id, memberName));
                         }
                     }
-				}
-			    resultMap.InitializeGroupByProperties();
-				_configScope.SqlMapper.AddResultMap( resultMap );
-			}
-		 }
+                }
+                resultMap.InitializeGroupByProperties();
+                _configScope.SqlMapper.AddResultMap(resultMap);
+            }
+        }
 
 
-		/// <summary>
-		/// Gets a resource stream.
-		/// </summary>
-		/// <param name="schemaResourceKey">The schema resource key.</param>
-		/// <returns>A resource stream.</returns>
-		public Stream GetStream( string schemaResourceKey )
-		{
-			return Assembly.GetExecutingAssembly().GetManifestResourceStream("SqlBatis.DataMapper." + schemaResourceKey); 
-		}
+        /// <summary>
+        /// Gets a resource stream.
+        /// </summary>
+        /// <param name="schemaResourceKey">The schema resource key.</param>
+        /// <returns>A resource stream.</returns>
+        public Stream GetStream(string schemaResourceKey)
+        {
+            return Assembly.GetExecutingAssembly().GetManifestResourceStream("SqlBatis.DataMapper." + schemaResourceKey);
+        }
 
 
-		/// <summary>
-		/// Apply the dataMapper namespace prefix
-		/// </summary>
-		/// <param name="elementName"></param>
-		/// <returns></returns>
-		public string ApplyDataMapperNamespacePrefix( string elementName )
-		{
-			return DATAMAPPER_NAMESPACE_PREFIX+ ":" + elementName.
-				Replace("/","/"+DATAMAPPER_NAMESPACE_PREFIX+":");
-		}
+        /// <summary>
+        /// Apply the dataMapper namespace prefix
+        /// </summary>
+        /// <param name="elementName"></param>
+        /// <returns></returns>
+        public string ApplyDataMapperNamespacePrefix(string elementName)
+        {
+            return DATAMAPPER_NAMESPACE_PREFIX + ":" + elementName.
+                Replace("/", "/" + DATAMAPPER_NAMESPACE_PREFIX + ":");
+        }
 
-		/// <summary>
-		/// Apply the provider namespace prefix
-		/// </summary>
-		/// <param name="elementName"></param>
-		/// <returns></returns>
-		public string ApplyProviderNamespacePrefix( string elementName )
-		{
-			return PROVIDERS_NAMESPACE_PREFIX+ ":" + elementName.
-				Replace("/","/"+PROVIDERS_NAMESPACE_PREFIX+":");
-		}
+        /// <summary>
+        /// Apply the provider namespace prefix
+        /// </summary>
+        /// <param name="elementName"></param>
+        /// <returns></returns>
+        public string ApplyProviderNamespacePrefix(string elementName)
+        {
+            return PROVIDERS_NAMESPACE_PREFIX + ":" + elementName.
+                Replace("/", "/" + PROVIDERS_NAMESPACE_PREFIX + ":");
+        }
 
-		/// <summary>
-		/// Apply the provider namespace prefix
-		/// </summary>
-		/// <param name="elementName"></param>
-		/// <returns></returns>
-		public static string ApplyMappingNamespacePrefix( string elementName )
-		{
-			return MAPPING_NAMESPACE_PREFIX+ ":" + elementName.
-				Replace("/","/"+MAPPING_NAMESPACE_PREFIX+":");
-		}
+        /// <summary>
+        /// Apply the provider namespace prefix
+        /// </summary>
+        /// <param name="elementName"></param>
+        /// <returns></returns>
+        public static string ApplyMappingNamespacePrefix(string elementName)
+        {
+            return MAPPING_NAMESPACE_PREFIX + ":" + elementName.
+                Replace("/", "/" + MAPPING_NAMESPACE_PREFIX + ":");
+        }
 
-		#endregion
-	}
+        #endregion
+    }
 }

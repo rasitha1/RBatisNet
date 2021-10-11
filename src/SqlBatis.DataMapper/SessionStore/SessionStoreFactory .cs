@@ -43,7 +43,7 @@ namespace SqlBatis.DataMapper.SessionStore
         /// </summary>
         /// <param name="sqlMapperId">The SQL mapper id.</param>
         /// <returns></returns>
-        public static ISessionStore GetSessionStore(string sqlMapperId)
+        public ISessionStore GetSessionStore(string sqlMapperId)
         {
             return new AsyncLocalSessionStore(sqlMapperId);
         }

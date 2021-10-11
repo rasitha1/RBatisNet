@@ -27,6 +27,8 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "SqlBatis.DynamicProxy", "sr
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "SqlBatis.Schemas", "src\SqlBatis.Schemas\SqlBatis.Schemas.csproj", "{BEF4D8DA-4D7D-4F06-BEC8-FAD373689F84}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SqlBatis.DataMapper.Providers.SqlServer", "src\SqlBatis.DataMapper.Providers.SqlServer\SqlBatis.DataMapper.Providers.SqlServer.csproj", "{B79D0DF3-E531-4F15-9C76-5CB70A60D642}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -49,6 +51,10 @@ Global
 		{BEF4D8DA-4D7D-4F06-BEC8-FAD373689F84}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{BEF4D8DA-4D7D-4F06-BEC8-FAD373689F84}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{BEF4D8DA-4D7D-4F06-BEC8-FAD373689F84}.Release|Any CPU.Build.0 = Release|Any CPU
+		{B79D0DF3-E531-4F15-9C76-5CB70A60D642}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{B79D0DF3-E531-4F15-9C76-5CB70A60D642}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{B79D0DF3-E531-4F15-9C76-5CB70A60D642}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{B79D0DF3-E531-4F15-9C76-5CB70A60D642}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -58,6 +64,7 @@ Global
 		{2D7F1177-6CF5-4DF2-B973-F0038EEB2031} = {9E400E52-68DF-4102-BDFF-CB3B0BB951BE}
 		{7073D8DD-5435-4C38-88AE-E6D796BC181A} = {892E3ACE-AA44-42CE-9BF3-D778BCD81677}
 		{BEF4D8DA-4D7D-4F06-BEC8-FAD373689F84} = {892E3ACE-AA44-42CE-9BF3-D778BCD81677}
+		{B79D0DF3-E531-4F15-9C76-5CB70A60D642} = {892E3ACE-AA44-42CE-9BF3-D778BCD81677}
 	EndGlobalSection
 	GlobalSection(ExtensibilityGlobals) = postSolution
 		SolutionGuid = {F8AE650B-B9C8-4085-B0D1-BA2B5999CB49}

@@ -28,7 +28,7 @@
 
 using System.Collections;
 using System.Text;
-
+using Microsoft.Extensions.Logging;
 using SqlBatis.DataMapper.Configuration.Sql;
 using SqlBatis.DataMapper.Configuration.Statements;
 using SqlBatis.DataMapper.DataExchange;
@@ -54,7 +54,8 @@ namespace SqlBatis.DataMapper.Configuration.Sql.SimpleDynamic
 
 		private string _simpleSqlStatement = string.Empty;
 		private IStatement _statement = null ;
-		private DataExchangeFactory _dataExchangeFactory = null;
+        private readonly ILoggerFactory _loggerFactory;
+        private DataExchangeFactory _dataExchangeFactory = null;
 
 		#endregion
 
@@ -68,12 +69,14 @@ namespace SqlBatis.DataMapper.Configuration.Sql.SimpleDynamic
         /// <param name="statement">The statement.</param>
 		internal SimpleDynamicSql(IScope scope,
 			string sqlStatement, 
-			IStatement statement)
+			IStatement statement,
+            ILoggerFactory loggerFactory)
 		{
 			_simpleSqlStatement = sqlStatement;
 			_statement = statement;
+            _loggerFactory = loggerFactory;
 
-			_dataExchangeFactory = scope.DataExchangeFactory;
+            _dataExchangeFactory = scope.DataExchangeFactory;
 		}
 		#endregion
 		
@@ -201,7 +204,7 @@ namespace SqlBatis.DataMapper.Configuration.Sql.SimpleDynamic
 		/// <param name="sqlStatement"></param>
 		private PreparedStatement BuildPreparedStatement(ISqlMapSession session, RequestScope request, string sqlStatement)
 		{
-			PreparedStatementFactory factory = new PreparedStatementFactory( session, request, _statement, sqlStatement);
+			PreparedStatementFactory factory = new PreparedStatementFactory( session, request, _statement, sqlStatement, _loggerFactory.CreateLogger<PreparedStatementFactory>());
 			return factory.Prepare();
 		}
 		#endregion

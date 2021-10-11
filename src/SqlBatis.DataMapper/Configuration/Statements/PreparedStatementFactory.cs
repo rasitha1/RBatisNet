@@ -30,9 +30,8 @@ using System;
 using System.Collections;
 using System.Collections.Specialized;
 using System.Data;
-using System.Reflection;
 using System.Text;
-using SqlBatis.DataMapper.Logging;
+using Microsoft.Extensions.Logging;
 using SqlBatis.DataMapper.Utilities;
 using SqlBatis.DataMapper.Utilities.Objects;
 using SqlBatis.DataMapper.Configuration.ParameterMapping;
@@ -49,36 +48,32 @@ namespace SqlBatis.DataMapper.Configuration.Statements
 	public class PreparedStatementFactory
 	{
 
-		#region Fields
-
-		private PreparedStatement _preparedStatement = null;
+		private PreparedStatement _preparedStatement;
 
 		private string _parameterPrefix = string.Empty;
-		private IStatement _statement = null;
-		private ISqlMapSession _session = null;
-		private string _commandText = string.Empty;
-		private RequestScope _request = null;
-		// (property, DbParameter)
-		private HybridDictionary _propertyDbParameterMap = new HybridDictionary();
+		private readonly IStatement _statement;
+		private readonly ISqlMapSession _session;
+		private readonly string _commandText;
+        private readonly ILogger<PreparedStatementFactory> _logger;
+        private readonly RequestScope _request;
+		private readonly HybridDictionary _propertyDbParameterMap = new HybridDictionary();
 
-		private static readonly ILog Logger = LogManager.GetLogger( MethodBase.GetCurrentMethod().DeclaringType );
-
-		#endregion
-
-		/// <summary>
-		/// Constructor
-		/// </summary>
-		/// <param name="session"></param>
-		/// <param name="statement"></param>
-		/// <param name="commandText"></param>
-		/// <param name="request"></param>
-		public PreparedStatementFactory(ISqlMapSession session, RequestScope request, IStatement statement, string commandText)
+        /// <summary>
+        /// Constructor
+        /// </summary>
+        /// <param name="session"></param>
+        /// <param name="statement"></param>
+        /// <param name="commandText"></param>
+        /// <param name="request"></param>
+        /// <param name="logger"></param>
+        public PreparedStatementFactory(ISqlMapSession session, RequestScope request, IStatement statement, string commandText, ILogger<PreparedStatementFactory> logger)
 		{
 			_session = session;
 			_request = request;
 			_statement = statement;
 			_commandText = commandText;
-		}
+            _logger = logger;
+        }
 
 
 		/// <summary>
@@ -128,7 +123,7 @@ namespace SqlBatis.DataMapper.Configuration.Statements
 				// in the MSDN Library. 
 				//http://support.microsoft.com/default.aspx?scid=kb;EN-US;Q309486
 
-				if ( _session.DataSource.DbProvider.IsObdc == true )
+				if ( _session.DataSource.DbProvider.IsObdc )
 				{
 					StringBuilder commandTextBuilder = new StringBuilder("{ call ");
 					commandTextBuilder.Append( _commandText );
@@ -149,17 +144,15 @@ namespace SqlBatis.DataMapper.Configuration.Statements
 				#endregion
 			}
 
-			if (Logger.IsDebugEnabled) 
+			if (_logger.IsEnabled(LogLevel.Debug)) 
 			{
-				Logger.Debug("Statement Id: [" + _statement.Id + "] Prepared SQL: [" + _preparedStatement.PreparedSql + "]");
+				_logger.LogDebug("Statement Id: [{StatementId}] Prepared SQL: [{PreparedSql}]", _statement.Id, _preparedStatement.PreparedSql);
 			}
 
 			return _preparedStatement;
 		}
 
-
-		#region Private methods
-
+		
 		/// <summary>
 		/// For store procedure, auto discover IDataParameters for stored procedures at run-time.
 		/// </summary>
@@ -232,10 +225,9 @@ namespace SqlBatis.DataMapper.Configuration.Statements
 		/// </summary>
 		private void CreateParametersForTextCommand()
 		{
-			string sqlParamName = string.Empty;
-			string dbTypePropertyName = _session.DataSource.DbProvider.ParameterDbTypeProperty;
+            string dbTypePropertyName = _session.DataSource.DbProvider.ParameterDbTypeProperty;
 			Type enumDbType = _session.DataSource.DbProvider.ParameterDbType;
-			ParameterPropertyCollection list = null;
+			ParameterPropertyCollection list;
 
 			if (_session.DataSource.DbProvider.UsePositionalParameters) //obdc/oledb
 			{
@@ -252,7 +244,8 @@ namespace SqlBatis.DataMapper.Configuration.Statements
 			{
 				ParameterProperty property = list[i];
 
-				if (_session.DataSource.DbProvider.UseParameterPrefixInParameter)
+                string sqlParamName;
+                if (_session.DataSource.DbProvider.UseParameterPrefixInParameter)
 				{
 					// From Ryan Yao: JIRA-27, used "param" + i++ for sqlParamName
 					sqlParamName = _parameterPrefix + "param" + i;
@@ -317,10 +310,9 @@ namespace SqlBatis.DataMapper.Configuration.Statements
 		/// </summary>
 		private void CreateParametersForProcedureCommand()
 		{
-			string sqlParamName = string.Empty;
-			string dbTypePropertyName = _session.DataSource.DbProvider.ParameterDbTypeProperty;
+            string dbTypePropertyName = _session.DataSource.DbProvider.ParameterDbTypeProperty;
 			Type enumDbType = _session.DataSource.DbProvider.ParameterDbType;
-			ParameterPropertyCollection list = null;
+			ParameterPropertyCollection list;
 
 			if (_session.DataSource.DbProvider.UsePositionalParameters) //obdc/oledb
 			{
@@ -342,7 +334,8 @@ namespace SqlBatis.DataMapper.Configuration.Statements
 			{
 				ParameterProperty property = list[i];
 
-				if (_session.DataSource.DbProvider.UseParameterPrefixInParameter)
+                string sqlParamName;
+                if (_session.DataSource.DbProvider.UseParameterPrefixInParameter)
 				{
 					sqlParamName = _parameterPrefix + property.ColumnName;
 				}
@@ -408,24 +401,23 @@ namespace SqlBatis.DataMapper.Configuration.Statements
 		private void EvaluateParameterMap()
 		{
 			string delimiter = "?";
-			string token = null;
-			int index = 0;
-			string sqlParamName = string.Empty;			
-			StringTokenizer parser = new StringTokenizer(_commandText, delimiter, true);
+            int index = 0;
+            StringTokenizer parser = new StringTokenizer(_commandText, delimiter, true);
 			StringBuilder newCommandTextBuffer = new StringBuilder();
 
 			IEnumerator enumerator = parser.GetEnumerator();
 
-			while (enumerator.MoveNext()) 
-			{
-				token = (string)enumerator.Current;
+			while (enumerator.MoveNext())
+            {
+                var token = (string)enumerator.Current;
 
-				if (delimiter.Equals(token)) // ?
+                if (delimiter.Equals(token)) // ?
 				{
 					ParameterProperty property = _request.ParameterMap.Properties[index];
-					IDataParameter dataParameter = null;
-					
-					if (_session.DataSource.DbProvider.UsePositionalParameters)
+					IDataParameter dataParameter;
+
+                    string sqlParamName;
+                    if (_session.DataSource.DbProvider.UsePositionalParameters)
 					{
 						// TODO Refactor?
 						if (_parameterPrefix.Equals(":"))
@@ -454,37 +446,34 @@ namespace SqlBatis.DataMapper.Configuration.Statements
 						{
 							// Fix ByteFX.Data.MySqlClient.MySqlParameter
 							// who strip prefix in Parameter Name ?!
-							if (_session.DataSource.DbProvider.Name.IndexOf("ByteFx")>=0)
+							if (_session.DataSource.DbProvider.Name.IndexOf("ByteFx", StringComparison.Ordinal)>=0)
 							{
-								sqlParamName = _parameterPrefix+dataParameter.ParameterName;
+								sqlParamName = _parameterPrefix+dataParameter?.ParameterName;
 							}
 							else
 							{
-								sqlParamName = dataParameter.ParameterName;
+								sqlParamName = dataParameter?.ParameterName;
 							}
 						}
 						else
 						{
-							sqlParamName = _parameterPrefix+dataParameter.ParameterName;
+							sqlParamName = _parameterPrefix+dataParameter?.ParameterName;
 						}
 					}			
 		
 					newCommandTextBuffer.Append(" ");
 					newCommandTextBuffer.Append(sqlParamName);
 
-					sqlParamName = string.Empty;
-					index ++;
+                    index ++;
 				}
 				else
 				{
 					newCommandTextBuffer.Append(token);
 				}
-			}
+            }
 
 			_preparedStatement.PreparedSql = newCommandTextBuffer.ToString();
 		}
 
-
-		#endregion
 	}
 }

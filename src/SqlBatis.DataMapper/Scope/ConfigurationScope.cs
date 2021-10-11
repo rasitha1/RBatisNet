@@ -30,13 +30,10 @@ using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Collections.Specialized;
-using System.Configuration;
 using System.Xml;
-using SqlBatis.DataMapper;
 using SqlBatis.DataMapper.Exceptions;
 using SqlBatis.DataMapper.Utilities;
 using SqlBatis.DataMapper.Utilities.Objects;
-using SqlBatis.DataMapper.Utilities.Objects.Members;
 using SqlBatis.DataMapper.Configuration;
 using SqlBatis.DataMapper.DataExchange;
 using SqlBatis.DataMapper.Proxy;
@@ -59,30 +56,29 @@ namespace SqlBatis.DataMapper.Scope
 
 		#region Fields
 		
-		private ErrorContext _errorContext = null;
-		private HybridDictionary _providers = new HybridDictionary();
-        private HybridDictionary _sqlIncludes = new HybridDictionary();
+		private readonly ErrorContext _errorContext;
+		private readonly HybridDictionary _providers = new HybridDictionary();
+        private readonly HybridDictionary _sqlIncludes = new HybridDictionary();
 
-		private NameValueCollection _properties = new NameValueCollection();
+		private readonly NameValueCollection _properties = new NameValueCollection();
 
-		private XmlDocument _sqlMapConfigDocument = null;
-		private XmlDocument _sqlMapDocument = null;
-		private XmlNode _nodeContext = null;
+		private XmlDocument _sqlMapConfigDocument;
+		private XmlDocument _sqlMapDocument;
+		private XmlNode _nodeContext;
 
-		private bool _useConfigFileWatcher = false;
-		private bool _useStatementNamespaces = false;
+		private bool _useConfigFileWatcher;
+		private bool _useStatementNamespaces;
 		private bool _useReflectionOptimizer = true;
-		private bool _validateSqlMap = false;
-		private bool _isCallFromDao = false;
+		private bool _validateSqlMap;
+		private bool _isCallFromDao;
 
-        private ISqlMapper _sqlMapper = null;
-		private string _sqlMapNamespace = null;
-		private DataSource _dataSource = null;
+        private ISqlMapper _sqlMapper;
+		private string _sqlMapNamespace;
+		private DataSource _dataSource;
 		private bool _isXmlValid = true;
-		private XmlNamespaceManager _nsmgr = null;
-		private HybridDictionary _cacheModelFlushOnExecuteStatements = new HybridDictionary();
+		private XmlNamespaceManager _nsmgr;
 
-		#endregion
+        #endregion
 	
 		#region Constructors
 
@@ -163,25 +159,7 @@ namespace SqlBatis.DataMapper.Scope
 		}
 
 		/// <summary>
-		/// Tell us if we are in a DataAccess context.
-		/// </summary>
-		public bool IsCallFromDao
-		{
-			set { _isCallFromDao = value; }
-			get { return _isCallFromDao; }
-		}
-
-		/// <summary>
-		/// External data source
-		/// </summary>
-		public DataSource DataSource
-		{
-			set { _dataSource = value; }
-			get { return _dataSource; }
-		}
-
-		/// <summary>
-		/// The current context node we are analizing
+		/// The current context node we are analyzing
 		/// </summary>
 		public XmlNode NodeContext
 		{
@@ -205,15 +183,6 @@ namespace SqlBatis.DataMapper.Scope
 		{
 			set { _sqlMapDocument = value; }
 			get { return _sqlMapDocument; }
-		}
-
-		/// <summary>
-		/// Tell us if we use Configuration File Watcher
-		/// </summary>
-		public bool UseConfigFileWatcher
-		{
-			set { _useConfigFileWatcher = value; }
-			get { return _useConfigFileWatcher; }
 		}
 
 		/// <summary>
@@ -249,25 +218,8 @@ namespace SqlBatis.DataMapper.Scope
 			get { return _properties; }
 		}
 
-		/// <summary>
-		/// Indicates if we can use reflection optimizer.
-		/// </summary>
-		public bool UseReflectionOptimizer
-		{
-			get { return _useReflectionOptimizer; }
-			set { _useReflectionOptimizer = value; }
-		}
 
-		/// <summary>
-		/// Temporary storage for mapping cache model ids (key is System.String) to statements (value is IList which contains IMappedStatements).
-		/// </summary>
-		public HybridDictionary CacheModelFlushOnExecuteStatements
-		{
-			get { return _cacheModelFlushOnExecuteStatements; }
-			set { _cacheModelFlushOnExecuteStatements = value; }
-		}
-
-	    /// <summary>
+        /// <summary>
 	    ///     Provides the <see cref="ILazyFactory" /> implementation
 	    /// </summary>
 	    public Type LazyFactoryType { get; set; }
@@ -284,7 +236,7 @@ namespace SqlBatis.DataMapper.Scope
             string newId = id;
 
             if (!string.IsNullOrEmpty(_sqlMapNamespace)
-                && !string.IsNullOrEmpty(id) && id.IndexOf(".") < 0)
+                && !string.IsNullOrEmpty(id) && id.IndexOf(".", StringComparison.Ordinal) < 0)
             {
                 newId = _sqlMapNamespace + DomSqlMapBuilder.DOT + id;
             }
@@ -302,7 +254,7 @@ namespace SqlBatis.DataMapper.Scope
         /// <returns></returns>
 		public ITypeHandler ResolveTypeHandler(Type clazz, string memberName, string clrType, string dbType, bool forSetter)
 		{
-			ITypeHandler handler = null;
+			ITypeHandler handler;
 			if (clazz==null)
 			{
                 handler = DataExchangeFactory.TypeHandlerFactory.GetUnkownTypeHandler();
@@ -335,9 +287,9 @@ namespace SqlBatis.DataMapper.Scope
 			else 
 			{
 				// .NET object
-				if (clrType ==null || clrType.Length == 0) 
+				if (string.IsNullOrEmpty(clrType)) 
 				{
-					Type type = null;
+					Type type;
 					if (forSetter)
 					{
 						type = ObjectProbe.GetMemberTypeForSetter(clazz, memberName);

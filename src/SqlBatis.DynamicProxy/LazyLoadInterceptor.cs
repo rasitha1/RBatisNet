@@ -31,7 +31,6 @@ using System;
 using System.Collections;
 using System.Reflection;
 using Castle.DynamicProxy;
-using SqlBatis.DataMapper.Logging;
 using SqlBatis.DataMapper.Utilities.Objects.Members;
 using SqlBatis.DataMapper;
 using SqlBatis.DataMapper.MappedStatements;
@@ -57,13 +56,13 @@ namespace IBatisNet.DynamicProxy
         /// <returns></returns>
         public void Intercept(IInvocation invocation)
         {
-            if (_logger.IsDebugEnabled) _logger.Debug("Proxyfying call to " + invocation.Method.Name);
+            //if (_logger.IsDebugEnabled) _logger.Debug("Proxyfying call to " + invocation.Method.Name);
 
             lock (_loadLock)
             {
                 if ((_loaded == false) && (!_passthroughMethods.Contains(invocation.Method.Name)))
                 {
-                    if (_logger.IsDebugEnabled) _logger.Debug("Proxyfying call, query statement " + _statementName);
+                    //if (_logger.IsDebugEnabled) _logger.Debug("Proxyfying call, query statement " + _statementName);
 
                     //Perform load
                     if (typeof(IList).IsAssignableFrom(_setAccessor.MemberType))
@@ -78,7 +77,7 @@ namespace IBatisNet.DynamicProxy
 
             object returnValue = invocation.Method.Invoke(_lazyLoadedItem, invocation.Arguments);
 
-            if (_logger.IsDebugEnabled) _logger.Debug("End of proxyfied call to " + invocation.Method.Name);
+            //if (_logger.IsDebugEnabled) _logger.Debug("End of proxyfied call to " + invocation.Method.Name);
 
             invocation.ReturnValue = returnValue;
         }
@@ -99,8 +98,6 @@ namespace IBatisNet.DynamicProxy
         //private IList _innerList = null;
         private readonly object _loadLock = new object();
         private static readonly ArrayList _passthroughMethods = new ArrayList();
-
-        private static readonly ILog _logger = LogManager.GetLogger(MethodBase.GetCurrentMethod().DeclaringType);
 
         #endregion
 

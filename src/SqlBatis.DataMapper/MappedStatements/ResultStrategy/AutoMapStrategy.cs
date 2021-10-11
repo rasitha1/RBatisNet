@@ -24,6 +24,7 @@
 #endregion
 
 using System.Data;
+using Microsoft.Extensions.Logging;
 using SqlBatis.DataMapper.Configuration.ResultMapping;
 using SqlBatis.DataMapper.Scope;
 
@@ -34,12 +35,18 @@ namespace SqlBatis.DataMapper.MappedStatements.ResultStrategy
 	/// </summary>
     public sealed class AutoMapStrategy : IResultStrategy
     {
-		/// <summary>
-		/// Auto-map the reader to the result object.
-		/// </summary>
-		/// <param name="request">The request.</param>
-		/// <param name="reader">The reader.</param>
-		/// <param name="resultObject">The result object.</param>
+        private readonly ILogger _logger;
+
+        public AutoMapStrategy(ILogger logger)
+        {
+            _logger = logger;
+        }
+        /// <summary>
+        /// Auto-map the reader to the result object.
+        /// </summary>
+        /// <param name="request">The request.</param>
+        /// <param name="reader">The reader.</param>
+        /// <param name="resultObject">The result object.</param>
         /// <returns>The AutoResultMap use to map the resultset.</returns>
         private AutoResultMap InitializeAutoResultMap(RequestScope request, ref IDataReader reader, ref object resultObject) 
 		{
@@ -52,7 +59,8 @@ namespace SqlBatis.DataMapper.MappedStatements.ResultStrategy
                 ResultPropertyCollection properties = ReaderAutoMapper.Build(
                     request.DataExchangeFactory,
                     reader,
-                    ref resultObject);
+                    ref resultObject,
+                    _logger);
 
                 resultMap.Properties.AddRange(properties);
 			}
@@ -67,7 +75,8 @@ namespace SqlBatis.DataMapper.MappedStatements.ResultStrategy
                             ResultPropertyCollection properties = ReaderAutoMapper.Build(
                                request.DataExchangeFactory,
                                reader,
-                               ref resultObject);
+                               ref resultObject,
+                               _logger);
 
                             resultMap.Properties.AddRange(properties);
                             resultMap.IsInitalized = true;

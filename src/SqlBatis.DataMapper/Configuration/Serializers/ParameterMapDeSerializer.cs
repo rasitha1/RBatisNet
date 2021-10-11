@@ -58,7 +58,7 @@ namespace SqlBatis.DataMapper.Configuration.Serializers
 
 			configScope.ErrorContext.MoreInfo = "Initialize ParameterMap";
 			configScope.NodeContext = node;
-			parameterMap.Initialize( configScope.DataSource.DbProvider.UsePositionalParameters, configScope );
+			parameterMap.Initialize( configScope.SqlMapper.DataSource.DbProvider.UsePositionalParameters, configScope );
 			parameterMap.BuildProperties(configScope);
 			configScope.ErrorContext.MoreInfo = string.Empty;
 

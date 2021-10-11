@@ -28,7 +28,6 @@
 using System;
 using System.Reflection;
 using Castle.DynamicProxy;
-using SqlBatis.DataMapper.Logging;
 using SqlBatis.DataMapper.Utilities.Objects.Members;
 using SqlBatis.DataMapper.MappedStatements;
 using SqlBatis.DataMapper.Proxy;
@@ -41,8 +40,6 @@ namespace IBatisNet.DynamicProxy
     public class LazyLoadProxyFactory : ILazyFactory
     {
         #region Fields
-
-        private static readonly ILog _logger = LogManager.GetLogger(MethodBase.GetCurrentMethod().DeclaringType);
 
         #endregion
 
@@ -61,9 +58,9 @@ namespace IBatisNet.DynamicProxy
         {
             Type typeProxified = setAccessor.MemberType;
 
-            if (_logger.IsDebugEnabled)
-                _logger.Debug(string.Format("Statement '{0}', create proxy for member {1}.", selectStatement.Id,
-                    setAccessor.MemberType));
+            //if (_logger.IsDebugEnabled)
+                //_logger.Debug(string.Format("Statement '{0}', create proxy for member {1}.", selectStatement.Id,
+                    //setAccessor.MemberType));
 
             // Build the proxy
             IInterceptor handler = new LazyLoadInterceptor(selectStatement, param, target, setAccessor);

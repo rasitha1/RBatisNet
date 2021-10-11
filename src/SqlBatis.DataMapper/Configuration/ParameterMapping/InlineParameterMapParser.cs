@@ -44,7 +44,7 @@ namespace SqlBatis.DataMapper.Configuration.ParameterMapping
 	/// <summary>
 	/// Summary description for InlineParameterMapParser.
 	/// </summary>
-	internal class InlineParameterMapParser
+    public class InlineParameterMapParser
 	{
 
 		#region Fields

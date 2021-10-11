@@ -12,8 +12,13 @@ using SqlBatis.DataMapper.Utilities; // ScriptRunner definition
 // SqlMap API
 using SqlBatis.DataMapper.Test.Domain;
 using System.Collections.Specialized;
-using SqlBatis.DataMapper.Logging;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Logging.Abstractions;
+using SqlBatis.DataMapper.Commands;
+using SqlBatis.DataMapper.Configuration.ParameterMapping;
+using SqlBatis.DataMapper.Configuration.Serializers;
+using SqlBatis.DataMapper.MappedStatements.ResultStrategy;
+using SqlBatis.DataMapper.Scope;
 using ConfigurationBuilder = Microsoft.Extensions.Configuration.ConfigurationBuilder;
 
 
@@ -31,8 +36,6 @@ namespace SqlBatis.DataMapper.Test.NUnit.SqlMapTests
         /// The sqlMap
         /// </summary>
         protected static ISqlMapper sqlMap = null;
-        private static readonly ILog Logger = LogManager.GetLogger(System.Reflection.MethodBase.GetCurrentMethod().DeclaringType);
-
         protected static string ScriptDirectory { get; }
 
         protected static KeyConvert ConvertKey = null;
@@ -53,18 +56,19 @@ namespace SqlBatis.DataMapper.Test.NUnit.SqlMapTests
         protected void InitSqlMap()
         {
             //DateTime start = DateTime.Now;
+            var scope = new ConfigurationScope();
+            var resultsStrategy = new ResultClassStrategy(NullLogger<ResultClassStrategy>.Instance);
 
-
-            ConfigureHandler handler = new ConfigureHandler(Configure);
-            DomSqlMapBuilder builder = new DomSqlMapBuilder();
+            DomSqlMapBuilder builder = new DomSqlMapBuilder(NullLogger<DomSqlMapBuilder>.Instance, NullLoggerFactory.Instance,
+                scope, new InlineParameterMapParser(), new PreparedCommandFactory(NullLoggerFactory.Instance), new ResultStrategyFactory(resultsStrategy));
             NameValueCollection properties = new NameValueCollection();
             properties.Add("collection2Namespace", "SqlBatis.DataMapper.Test.Domain.LineItemCollection2, SqlBatis.DataMapper.Test");
             properties.Add("nullableInt", "int?");
             ChildSetupProperties(properties);
             builder.Properties = properties;
 
-            sqlMap = builder.ConfigureAndWatch("sqlmap" + "_" + Configuration["database"] + "_"
-                                               + Configuration["providerType"] + ".config", handler);
+            sqlMap = builder.Configure("sqlmap" + "_" + Configuration["database"] + "_"
+                                               + Configuration["providerType"] + ".config");
 
             //string loadTime = DateTime.Now.Subtract(start).ToString();
             //Console.WriteLine("Loading configuration time :"+loadTime);
@@ -92,7 +96,12 @@ namespace SqlBatis.DataMapper.Test.NUnit.SqlMapTests
         {
             //DateTime start = DateTime.Now;
 
-            DomSqlMapBuilder builder = new DomSqlMapBuilder();
+            var scope = new ConfigurationScope();
+            var resultsStrategy = new ResultClassStrategy(NullLogger<ResultClassStrategy>.Instance);
+
+            DomSqlMapBuilder builder = new DomSqlMapBuilder(NullLogger<DomSqlMapBuilder>.Instance, NullLoggerFactory.Instance,
+                scope, new InlineParameterMapParser(), new PreparedCommandFactory(NullLoggerFactory.Instance), new ResultStrategyFactory(resultsStrategy));
+
             NameValueCollection properties = new NameValueCollection();
             properties.Add("collection2Namespace", "SqlBatis.DataMapper.Test.Domain.LineItemCollection2, SqlBatis.DataMapper.Test");
             properties.Add("nullableInt", "int?");

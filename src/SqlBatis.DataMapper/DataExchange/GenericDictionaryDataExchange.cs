@@ -5,8 +5,15 @@ using SqlBatis.DataMapper.Utilities.Objects;
 
 namespace SqlBatis.DataMapper.DataExchange
 {
+    /// <summary>
+    /// DataExchange implementation for IDictionary{string,object} objects
+    /// </summary>
     public sealed class GenericDictionaryDataExchange : BaseDataExchange
     {
+        /// <summary>
+        /// Constructor
+        /// </summary>
+        /// <param name="dataExchangeFactory"></param>
         public GenericDictionaryDataExchange(DataExchangeFactory dataExchangeFactory) : base(dataExchangeFactory)
         {
         }

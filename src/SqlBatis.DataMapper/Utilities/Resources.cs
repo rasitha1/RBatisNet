@@ -24,7 +24,6 @@
  ********************************************************************************/
 #endregion
 
-#region Using
 
 using System;
 using System.Collections.Specialized;
@@ -33,11 +32,9 @@ using System.Reflection;
 using System.Security.Permissions;
 using System.Xml;
 using SqlBatis.DataMapper.Exceptions;
-using SqlBatis.DataMapper.Logging;
 using SqlBatis.DataMapper.Utilities.TypesResolver;
 using SqlBatis.DataMapper.Xml;
 
-#endregion
 
 namespace SqlBatis.DataMapper.Utilities
 {
@@ -53,17 +50,9 @@ namespace SqlBatis.DataMapper.Utilities
 	public class Resources
 	{
 
-		#region Fields
-
 	    private static string _applicationBase = AppDomain.CurrentDomain.BaseDirectory;
 		private static string _baseDirectory = AppDomain.CurrentDomain.BaseDirectory;
-        //private static CachedTypeResolver _cachedTypeResolver = null;
 
-		private static readonly ILog Logger = LogManager.GetLogger( MethodBase.GetCurrentMethod().DeclaringType );
-
-		#endregion
-
-		#region Properties
 		/// <summary>
 		/// The name of the directory containing the application
 		/// </summary>
@@ -87,16 +76,6 @@ namespace SqlBatis.DataMapper.Utilities
 		}
 
 
-		#endregion
-
-		#region Constructor (s) / Destructor
-		static Resources()
-		{
-            //_cachedTypeResolver = new CachedTypeResolver();
-		}
-		#endregion
-
-		#region Methods
 
 		/// <summary>
 		/// Protocole separator
@@ -423,7 +402,6 @@ namespace SqlBatis.DataMapper.Utilities
 
 			if (isLoad == false) 
 			{
-				Logger.Error("Could not load embedded resource from assembly");
 				throw new ConfigurationException(
 					string.Format("Unable to load embedded resource from assembly \"{0}\".",
 					fileInfo.OriginalFileName));
@@ -484,9 +462,7 @@ namespace SqlBatis.DataMapper.Utilities
                 //_cachedTypeResolver.Resolve(className);
 		}
 
-		#endregion
 
-		#region Inner Class : FileAssemblyInfo
 		/// <summary>
 		/// Holds data about a <see cref="System.Type"/> and it's
 		/// attendant <see cref="System.Reflection.Assembly"/>.
@@ -600,7 +576,6 @@ namespace SqlBatis.DataMapper.Utilities
 			#endregion
 
 		}
-		#endregion
 
 	}
 }

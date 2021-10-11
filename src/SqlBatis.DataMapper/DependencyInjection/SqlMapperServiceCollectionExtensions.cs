@@ -1,6 +1,14 @@
 ﻿using System;
 using SqlBatis.DataMapper.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Options;
+using SqlBatis.DataMapper.Commands;
+using SqlBatis.DataMapper.Configuration.ParameterMapping;
+using SqlBatis.DataMapper.Configuration.Serializers;
+using SqlBatis.DataMapper.MappedStatements.ResultStrategy;
+using SqlBatis.DataMapper.Scope;
+using SqlBatis.DataMapper.TypeHandlers;
+using SqlBatis.DataMapper.Utilities;
 
 namespace SqlBatis.DataMapper.DependencyInjection
 {
@@ -15,16 +23,12 @@ namespace SqlBatis.DataMapper.DependencyInjection
         /// <param name="services"></param>
         /// <param name="configureOptions"></param>
         /// <returns></returns>
-        public static IServiceCollection AddSqlMapper(this IServiceCollection services, Action<SqlMapperOptions> configureOptions)
+        public static ISqlMapperBuilder AddSqlMapper(this IServiceCollection services, Action<SqlMapperOptions> configureOptions)
         {
-            services.AddCommon();
-            services.AddOptions<SqlMapperOptions>()
-                .Configure(configureOptions)
-                .PostConfigure(options => options.ConfigurationComplete=true)
-                .ValidateDataAnnotations();
+            var builder = services.AddSqlMapper(Options.DefaultName, configureOptions);
             // register default instance
-            services.AddSingleton(sp => sp.GetRequiredService<ISqlMapperFactory>().GetMapper());
-            return services;
+            builder.Services.AddSingleton(sp => sp.GetRequiredService<ISqlMapperFactory>().GetMapper());
+            return builder;
         }
 
         /// <summary>
@@ -35,22 +39,30 @@ namespace SqlBatis.DataMapper.DependencyInjection
         /// <param name="name">Name of the mapper.</param>
         /// <param name="configureOptions"></param>
         /// <returns></returns>
-        public static IServiceCollection AddSqlMapper(this IServiceCollection services, string name, Action<SqlMapperOptions> configureOptions)
+        public static ISqlMapperBuilder AddSqlMapper(this IServiceCollection services, string name, Action<SqlMapperOptions> configureOptions)
         {
-            services.AddCommon();
-            services.AddOptions<SqlMapperOptions>(name)
+            services.AddOptions();
+            services.AddLogging();
+            services.AddTransient<IDomSqlMapBuilder, DomSqlMapBuilder>();
+            services.AddSingleton<ISqlMapperFactory, DefaultSqlMapperFactory>();
+
+            services.AddTransient<ConfigurationScope>();
+            services.AddTransient<PreparedCommandFactory>();
+            services.AddTransient<ResultStrategyFactory>();
+            services.AddTransient<TypeHandlerFactory>();
+            services.AddTransient<DBHelperParameterCache>();
+            services.AddTransient<ResultClassStrategy>();
+            services.AddTransient<InlineParameterMapParser>();
+            
+
+
+            var builder = new DefaultSqlMapperBuilder(services, name);
+            builder.Services.AddOptions<SqlMapperOptions>(name)
                 .Configure(configureOptions)
                 .PostConfigure(options => options.ConfigurationComplete = true)
                 .ValidateDataAnnotations();
-            return services;
-        }
 
-        private static void AddCommon(this IServiceCollection services)
-        {
-            services.AddOptions();
-            services.AddTransient<IDomSqlMapBuilder, DomSqlMapBuilder>();
-            services.AddSingleton<ISqlMapperFactory, DefaultSqlMapperFactory>();
-            services.AddSingleton<INamedMapperDependencyResolver, NamedMapperDependencyResolver>();
+            return builder;
         }
 
         /// <summary>
@@ -67,6 +79,7 @@ namespace SqlBatis.DataMapper.DependencyInjection
             where TService : class
             where TImplementation : class, TService
         {
+            services.AddSingleton<INamedMapperDependencyResolver, NamedMapperDependencyResolver>();
             return services.AddSingleton<TService>(provider => provider
                 .GetRequiredService<INamedMapperDependencyResolver>()
                 .GetInstance<TImplementation>(mapperName));
@@ -85,6 +98,7 @@ namespace SqlBatis.DataMapper.DependencyInjection
             where TService : class
             where TImplementation : class, TService
         {
+            services.AddSingleton<INamedMapperDependencyResolver, NamedMapperDependencyResolver>();
             return services.AddTransient<TService>(provider => provider
                 .GetRequiredService<INamedMapperDependencyResolver>()
                 .GetInstance<TImplementation>(mapperName));
@@ -103,6 +117,7 @@ namespace SqlBatis.DataMapper.DependencyInjection
             where TService : class
             where TImplementation : class, TService
         {
+            services.AddSingleton<INamedMapperDependencyResolver, NamedMapperDependencyResolver>();
             return services.AddScoped<TService>(provider => provider
                 .GetRequiredService<INamedMapperDependencyResolver>()
                 .GetInstance<TImplementation>(mapperName));

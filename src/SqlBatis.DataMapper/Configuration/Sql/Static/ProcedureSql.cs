@@ -25,6 +25,7 @@
 
 #region Using
 using System;
+using Microsoft.Extensions.Logging;
 using SqlBatis.DataMapper.Configuration.Statements;
 using SqlBatis.DataMapper.DataExchange;
 using SqlBatis.DataMapper.MappedStatements;
@@ -42,7 +43,8 @@ namespace SqlBatis.DataMapper.Configuration.Sql.Static
 		#region Fields
 
 		private IStatement _statement = null ;
-		private PreparedStatement _preparedStatement = null ;
+        private readonly ILoggerFactory _loggerFactory;
+        private PreparedStatement _preparedStatement = null ;
 		private string _sqlStatement = string.Empty;
 		private object _synRoot = new Object();
 		private DataExchangeFactory _dataExchangeFactory = null;
@@ -56,12 +58,13 @@ namespace SqlBatis.DataMapper.Configuration.Sql.Static
 		/// <param name="statement">The statement.</param>
 		/// <param name="sqlStatement"></param>
 		/// <param name="scope"></param>
-		public ProcedureSql(IScope scope, string sqlStatement, IStatement statement)
+		public ProcedureSql(IScope scope, string sqlStatement, IStatement statement, ILoggerFactory loggerFactory)
 		{
 			_sqlStatement = sqlStatement;
 			_statement = statement;
+            _loggerFactory = loggerFactory;
 
-			_dataExchangeFactory = scope.DataExchangeFactory;
+            _dataExchangeFactory = scope.DataExchangeFactory;
 		}
 		#endregion
 
@@ -99,7 +102,7 @@ namespace SqlBatis.DataMapper.Configuration.Sql.Static
 				{
 					if (_preparedStatement==null)
 					{
-						PreparedStatementFactory factory = new PreparedStatementFactory( session, request, _statement, commandText);
+						PreparedStatementFactory factory = new PreparedStatementFactory( session, request, _statement, commandText, _loggerFactory.CreateLogger<PreparedStatementFactory>());
 						_preparedStatement = factory.Prepare();
 					}
 				}

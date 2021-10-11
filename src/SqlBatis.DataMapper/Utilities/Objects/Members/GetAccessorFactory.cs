@@ -50,37 +50,29 @@ namespace SqlBatis.DataMapper.Utilities.Objects.Members
         private ModuleBuilder _moduleBuilder = null;
         private object _syncObject = new object();
 
-         /// <summary>
+        /// <summary>
         /// Initializes a new instance of the <see cref="GetAccessorFactory"/> class.
         /// </summary>
-        /// <param name="allowCodeGeneration">if set to <c>true</c> [allow code generation].</param>
-        public GetAccessorFactory(bool allowCodeGeneration)
-		{
-            if (allowCodeGeneration)
+        public GetAccessorFactory()
+        {
+
+            // Detect runtime environment and create the appropriate factory
+            if (Environment.Version.Major >= 2)
             {
-                // Detect runtime environment and create the appropriate factory
-                if (Environment.Version.Major >= 2)
-                {
-                    _createPropertyGetAccessor = new CreatePropertyGetAccessor(CreateDynamicPropertyGetAccessor);
-                    _createFieldGetAccessor = new CreateFieldGetAccessor(CreateDynamicFieldGetAccessor);
-                }
-                else
-                {
-                    AssemblyName assemblyName = new AssemblyName();
-                    assemblyName.Name = "iBATIS.FastGetAccessor" + HashCodeProvider.GetIdentityHashCode(this).ToString();
-
-                    // Create a new assembly with one module
-                    _assemblyBuilder = AssemblyBuilder.DefineDynamicAssembly(assemblyName, AssemblyBuilderAccess.Run);
-                    _moduleBuilder = _assemblyBuilder.DefineDynamicModule(assemblyName.Name + ".dll");
-
-                    _createPropertyGetAccessor = new CreatePropertyGetAccessor(CreatePropertyAccessor);
-                    _createFieldGetAccessor = new CreateFieldGetAccessor(CreateFieldAccessor);
-                }
+                _createPropertyGetAccessor = new CreatePropertyGetAccessor(CreateDynamicPropertyGetAccessor);
+                _createFieldGetAccessor = new CreateFieldGetAccessor(CreateDynamicFieldGetAccessor);
             }
             else
             {
-                _createPropertyGetAccessor = new CreatePropertyGetAccessor(CreateReflectionPropertyGetAccessor);
-                _createFieldGetAccessor = new CreateFieldGetAccessor(CreateReflectionFieldGetAccessor);
+                AssemblyName assemblyName = new AssemblyName();
+                assemblyName.Name = "iBATIS.FastGetAccessor" + HashCodeProvider.GetIdentityHashCode(this).ToString();
+
+                // Create a new assembly with one module
+                _assemblyBuilder = AssemblyBuilder.DefineDynamicAssembly(assemblyName, AssemblyBuilderAccess.Run);
+                _moduleBuilder = _assemblyBuilder.DefineDynamicModule(assemblyName.Name + ".dll");
+
+                _createPropertyGetAccessor = new CreatePropertyGetAccessor(CreatePropertyAccessor);
+                _createFieldGetAccessor = new CreateFieldGetAccessor(CreateFieldAccessor);
             }
         }
 

@@ -29,6 +29,7 @@
 using System.Collections;
 using System.Data;
 using System.Text;
+using Microsoft.Extensions.Logging;
 using SqlBatis.DataMapper.Configuration.ParameterMapping;
 using SqlBatis.DataMapper.Configuration.Sql.Dynamic.Elements;
 using SqlBatis.DataMapper.Configuration.Sql.Dynamic.Handlers;
@@ -55,7 +56,8 @@ namespace SqlBatis.DataMapper.Configuration.Sql.Dynamic
 
 		private IList _children = new ArrayList();
 		private IStatement _statement = null ;
-		private bool _usePositionalParameters = false;
+        private readonly ILoggerFactory _loggerFactory;
+        private bool _usePositionalParameters = false;
 		private InlineParameterMapParser _paramParser = null;
 		private DataExchangeFactory _dataExchangeFactory = null;
 
@@ -63,17 +65,18 @@ namespace SqlBatis.DataMapper.Configuration.Sql.Dynamic
 
 		#region Constructor (s) / Destructor
 
-
         /// <summary>
         /// Initializes a new instance of the <see cref="DynamicSql"/> class.
         /// </summary>
         /// <param name="configScope">The config scope.</param>
         /// <param name="statement">The statement.</param>
-		internal DynamicSql(ConfigurationScope configScope, IStatement statement)
+        /// <param name="loggerFactory"></param>
+        internal DynamicSql(ConfigurationScope configScope, IStatement statement, ILoggerFactory loggerFactory)
 		{
 			_statement = statement;
+            _loggerFactory = loggerFactory;
 
-			_usePositionalParameters = configScope.DataSource.DbProvider.UsePositionalParameters;
+            _usePositionalParameters = configScope.SqlMapper.DataSource.DbProvider.UsePositionalParameters;
 			_dataExchangeFactory = configScope.DataExchangeFactory;
 		}
 		#endregion
@@ -153,7 +156,7 @@ namespace SqlBatis.DataMapper.Configuration.Sql.Dynamic
 			// Processes $substitutions$ after DynamicSql
 			if ( SimpleDynamicSql.IsSimpleDynamicSql(dynSql) ) 
 			{
-				dynSql = new SimpleDynamicSql(request, dynSql, _statement).GetSql(parameterObject);
+				dynSql = new SimpleDynamicSql(request, dynSql, _statement, _loggerFactory).GetSql(parameterObject);
 			}
 			return dynSql;
 		}
@@ -301,7 +304,7 @@ namespace SqlBatis.DataMapper.Configuration.Sql.Dynamic
 		/// <returns></returns>
 		private PreparedStatement BuildPreparedStatement(ISqlMapSession session, RequestScope request, string sqlStatement)
 		{
-			PreparedStatementFactory factory = new PreparedStatementFactory( session, request, _statement, sqlStatement);
+			PreparedStatementFactory factory = new PreparedStatementFactory( session, request, _statement, sqlStatement, _loggerFactory.CreateLogger<PreparedStatementFactory>());
 			return factory.Prepare();
 		}
 		#endregion

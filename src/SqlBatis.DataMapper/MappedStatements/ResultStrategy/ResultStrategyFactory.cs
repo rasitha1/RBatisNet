@@ -23,6 +23,7 @@
  ********************************************************************************/
 #endregion
 
+using Microsoft.Extensions.Logging;
 using SqlBatis.DataMapper.Configuration.ResultMapping;
 using SqlBatis.DataMapper.Configuration.Statements;
 
@@ -33,17 +34,17 @@ namespace SqlBatis.DataMapper.MappedStatements.ResultStrategy
     /// </summary>
     public sealed class ResultStrategyFactory
     {
-        private static IResultStrategy _resultClassStrategy = null;
-        private static IResultStrategy _mapStrategy = null;
-        private static IResultStrategy _objectStrategy = null;
+        private readonly IResultStrategy _resultClassStrategy = null;
+        private readonly IResultStrategy _mapStrategy = null;
+        private readonly IResultStrategy _objectStrategy = null;
 
         /// <summary>
         /// Initializes the <see cref="ResultStrategyFactory"/> class.
         /// </summary>
-        static ResultStrategyFactory()
+        public ResultStrategyFactory(ResultClassStrategy resultClassStrategy)
         {
             _mapStrategy = new MapStrategy();
-            _resultClassStrategy = new ResultClassStrategy();
+            _resultClassStrategy = resultClassStrategy;
             _objectStrategy = new ObjectStrategy();
         }
 
@@ -52,7 +53,7 @@ namespace SqlBatis.DataMapper.MappedStatements.ResultStrategy
         /// </summary>
         /// <param name="statement">The statement.</param>
         /// <returns>The <see cref="IResultStrategy"/></returns>
-        public static IResultStrategy Get(IStatement statement)
+        public IResultStrategy Get(IStatement statement)
         {
             // If there's an IResultMap, use it
             if (statement.ResultsMap.Count > 0)

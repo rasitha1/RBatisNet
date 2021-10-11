@@ -28,8 +28,8 @@ using System.Collections;
 
 using SqlBatis.DataMapper.MappedStatements;
 using SqlBatis.DataMapper.Utilities.Objects.Members;
-using SqlBatis.DataMapper.Logging;
 using System.Reflection;
+using Microsoft.Extensions.Logging;
 
 namespace SqlBatis.DataMapper.Proxy
 {
@@ -49,7 +49,6 @@ namespace SqlBatis.DataMapper.Proxy
         private object _loadLock = new object();
         private IList _list = null;
 
-        private static readonly ILog Logger = LogManager.GetLogger(MethodBase.GetCurrentMethod().DeclaringType);
         #endregion
 
         /// <summary>
@@ -58,28 +57,14 @@ namespace SqlBatis.DataMapper.Proxy
         /// <param name="methodName">Name of the method.</param>
         private void Load(string methodName)
         {
-            if (Logger.IsDebugEnabled)
-            {
-                Logger.Debug("Proxyfying call to " + methodName);
-            }
-
             lock (_loadLock)
             {
                 if (_loaded == false)
                 {
-                    if (Logger.IsDebugEnabled)
-                    {
-                        Logger.Debug("Proxyfying call, query statement " + _statementId);
-                    }
                     _list = _sqlMap.QueryForList(_statementId, _param);
                     _loaded = true;
                     _setAccessor.Set(_target, _list);
                 }
-            }
-
-            if (Logger.IsDebugEnabled)
-            {
-                Logger.Debug("End of proxyfied call to " + methodName);
             }
         }
 

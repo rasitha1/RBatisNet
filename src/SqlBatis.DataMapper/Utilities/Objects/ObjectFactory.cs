@@ -25,7 +25,7 @@
 
 using System;
 using System.Reflection;
-using SqlBatis.DataMapper.Logging;
+using Microsoft.Extensions.Logging;
 
 namespace SqlBatis.DataMapper.Utilities.Objects
 {
@@ -34,34 +34,31 @@ namespace SqlBatis.DataMapper.Utilities.Objects
 	/// </summary>
 	public class ObjectFactory : IObjectFactory
 	{
-		private IObjectFactory _objectFactory = null;
-        private static readonly ILog Logger = LogManager.GetLogger(MethodBase.GetCurrentMethod().DeclaringType);
+        private readonly ILoggerFactory _loggerFactory;
+        private readonly ILogger<ObjectFactory> _logger;
+        private IObjectFactory _objectFactory = null;
 
-		/// <summary>
-		/// Constructor
-		/// </summary>
-		/// <param name="allowCodeGeneration"></param>
-		public ObjectFactory(bool allowCodeGeneration)
-		{
-			if (allowCodeGeneration)
-			{
-				// Detect runtime environment and create the appropriate factory
-				if (Environment.Version.Major >= 2)
-				{
-                    _objectFactory = new DelegateObjectFactory();
-				}
-				else
-				{
-					_objectFactory = new EmitObjectFactory();
-				}
-			}
-			else
-			{
-				_objectFactory = new ActivatorObjectFactory();
-			}
-		}
+        /// <summary>
+        /// Constructor
+        /// </summary>
+        /// <param name="allowCodeGeneration"></param>
+        /// <param name="loggerFactory"></param>
+        public ObjectFactory(ILoggerFactory loggerFactory, ILogger<ObjectFactory> logger)
+        {
+            _loggerFactory = loggerFactory;
+            _logger = logger;
+            // Detect runtime environment and create the appropriate factory
+            if (Environment.Version.Major >= 2)
+            {
+                _objectFactory = new DelegateObjectFactory(_loggerFactory.CreateLogger<DelegateObjectFactory>());
+            }
+            else
+            {
+                _objectFactory = new EmitObjectFactory(_loggerFactory);
+            }
+        }
 
-		#region IObjectFactory members
+        #region IObjectFactory members
 
 		/// <summary>
 		/// Create a new factory instance for a given type
@@ -71,9 +68,9 @@ namespace SqlBatis.DataMapper.Utilities.Objects
 		/// <returns>Returns a new instance factory</returns>
 		public IFactory CreateFactory(Type typeToCreate, Type[] types)
 		{
-            if (Logger.IsDebugEnabled)
+            if (_logger.IsEnabled(LogLevel.Debug))
             {
-                return new FactoryLogAdapter(typeToCreate, types, _objectFactory.CreateFactory(typeToCreate, types));
+                return new FactoryLogAdapter(typeToCreate, types, _objectFactory.CreateFactory(typeToCreate, types), _logger);
             }
 		    else
             {

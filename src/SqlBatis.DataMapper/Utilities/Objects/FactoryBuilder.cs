@@ -26,8 +26,8 @@
 using System;
 using System.Reflection;
 using System.Reflection.Emit;
+using Microsoft.Extensions.Logging;
 using SqlBatis.DataMapper.Exceptions;
-using SqlBatis.DataMapper.Logging;
 
 namespace SqlBatis.DataMapper.Utilities.Objects
 {
@@ -36,18 +36,19 @@ namespace SqlBatis.DataMapper.Utilities.Objects
 	/// </summary>
 	public class FactoryBuilder
 	{
-		private const BindingFlags VISIBILITY = BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic;
+        private readonly ILogger<FactoryBuilder> _logger;
+        private const BindingFlags VISIBILITY = BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic;
         private const MethodAttributes CREATE_METHOD_ATTRIBUTES = MethodAttributes.Public | MethodAttributes.HideBySig | MethodAttributes.NewSlot | MethodAttributes.Virtual | MethodAttributes.Final;
-		private static readonly ILog Logger = LogManager.GetLogger( MethodBase.GetCurrentMethod().DeclaringType );
 
         private ModuleBuilder _moduleBuilder = null;
        
         /// <summary>
 		/// constructor
 		/// </summary>
-		public FactoryBuilder()
+		public FactoryBuilder(ILogger<FactoryBuilder> logger)
 		{
-			AssemblyName assemblyName = new AssemblyName();
+            _logger = logger;
+            AssemblyName assemblyName = new AssemblyName();
             assemblyName.Name = "iBATIS.EmitFactory" + HashCodeProvider.GetIdentityHashCode(this).ToString();
 
 			// Create a new assembly with one module
@@ -66,9 +67,9 @@ namespace SqlBatis.DataMapper.Utilities.Objects
 		{
 			if (typeToCreate.IsAbstract)
 			{
-				if (Logger.IsInfoEnabled)
+				if (_logger.IsEnabled(LogLevel.Information))
 				{
-                    Logger.Info("Create a stub IFactory for abstract type " + typeToCreate.Name);
+                    _logger.LogInformation("Create a stub IFactory for abstract type " + typeToCreate.Name);
                 }
                 return new AbstractFactory(typeToCreate);
 			}

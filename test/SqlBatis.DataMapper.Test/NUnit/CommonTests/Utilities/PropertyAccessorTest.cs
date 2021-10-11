@@ -157,7 +157,7 @@ namespace SqlBatis.DataMapper.Test.NUnit.CommonTests.Utilities
             Property prop = new Property();
             IGetAccessor accessor1 = factoryGet.CreateGetAccessor(typeof(Property), "Int");
 
-            IGetAccessorFactory factory2 = new GetAccessorFactory(true);
+            IGetAccessorFactory factory2 = new GetAccessorFactory();
             IGetAccessor accessor2 = factory2.CreateGetAccessor(typeof(Property), "Int");
 
             Assert.AreEqual(int.MinValue, accessor1.Get(prop));

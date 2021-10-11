@@ -26,7 +26,7 @@
 using System;
 using System.Reflection;
 using System.Text;
-using SqlBatis.DataMapper.Logging;
+using Microsoft.Extensions.Logging;
 
 namespace SqlBatis.DataMapper.Utilities.Objects
 {
@@ -37,10 +37,9 @@ namespace SqlBatis.DataMapper.Utilities.Objects
 	public class FactoryLogAdapter : IFactory
 	{
 		private IFactory _factory = null;
-		private string _typeName = string.Empty;
+        private readonly ILogger _logger;
+        private string _typeName = string.Empty;
 		private string _parametersTypeName = string.Empty;
-		
-		private static readonly ILog Logger = LogManager.GetLogger( MethodBase.GetCurrentMethod().DeclaringType );
 
         /// <summary>
         /// Initializes a new instance of the <see cref="FactoryLogAdapter"/> class.
@@ -48,10 +47,12 @@ namespace SqlBatis.DataMapper.Utilities.Objects
         /// <param name="type">The type.</param>
         /// <param name="paramtersTypes">The paramters types.</param>
         /// <param name="factory">The factory.</param>
-		public FactoryLogAdapter(Type type, Type[] paramtersTypes, IFactory factory)
+        /// <param name="logger"></param>
+        public FactoryLogAdapter(Type type, Type[] paramtersTypes, IFactory factory, ILogger logger)
 		{
 			_factory = factory;
-			_typeName = type.FullName;
+            _logger = logger;
+            _typeName = type.FullName;
 			_parametersTypeName = GenerateParametersName(paramtersTypes);
 		}
 		
@@ -77,9 +78,9 @@ namespace SqlBatis.DataMapper.Utilities.Objects
 			}
 			catch
 			{
-				Logger.Debug("Enabled to create instance for type '" + _typeName);
-				Logger.Debug("  using parameters type : " + _parametersTypeName );
-				Logger.Debug("  using parameters value : " + GenerateLogInfoForParameterValue(parameters) );
+				_logger.LogDebug("Enabled to create instance for type '" + _typeName);
+                _logger.LogDebug("  using parameters type : " + _parametersTypeName );
+                _logger.LogDebug("  using parameters value : " + GenerateLogInfoForParameterValue(parameters) );
 				throw;
 			}
             			

@@ -25,8 +25,10 @@
 
 
 using System.Collections;
+using SqlBatis.DataMapper.Commands;
 using SqlBatis.DataMapper.Exceptions;
 using SqlBatis.DataMapper.Configuration.Statements;
+using SqlBatis.DataMapper.MappedStatements.ResultStrategy;
 
 namespace SqlBatis.DataMapper.MappedStatements
 {
@@ -40,7 +42,8 @@ namespace SqlBatis.DataMapper.MappedStatements
 		/// </summary>
 		/// <param name="sqlMap">An SqlMap</param>
 		/// <param name="statement">An SQL statement</param>
-		internal InsertMappedStatement( ISqlMapper sqlMap, IStatement statement ): base(sqlMap, statement)
+		internal InsertMappedStatement( ISqlMapper sqlMap, IStatement statement, PreparedCommandFactory commandFactory, ResultStrategyFactory resultFactory) 
+            : base(sqlMap, statement, commandFactory, resultFactory)
 		{
 		}
 

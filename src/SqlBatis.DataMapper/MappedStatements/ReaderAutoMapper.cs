@@ -30,7 +30,7 @@ using System;
 using System.Collections;
 using System.Data;
 using System.Reflection;
-using SqlBatis.DataMapper.Logging;
+using Microsoft.Extensions.Logging;
 using SqlBatis.DataMapper.Utilities.Objects;
 using SqlBatis.DataMapper.Utilities.Objects.Members;
 using SqlBatis.DataMapper.Configuration.ResultMapping;
@@ -47,8 +47,6 @@ namespace SqlBatis.DataMapper.MappedStatements
     /// </summary>
     public sealed class ReaderAutoMapper 
 	{
-        private static readonly ILog Logger = LogManager.GetLogger(MethodBase.GetCurrentMethod().DeclaringType);
-        
         /// <summary>
         /// Builds a <see cref="ResultPropertyCollection"/> for an <see cref="AutoResultMap"/>.
         /// </summary>
@@ -57,7 +55,7 @@ namespace SqlBatis.DataMapper.MappedStatements
         /// <param name="resultObject">The result object.</param>
 		public static ResultPropertyCollection Build(DataExchangeFactory dataExchangeFactory,
 		                        IDataReader reader,
-			                    ref object resultObject) 
+			                    ref object resultObject, ILogger logger) 
 		{
         	Type targetType = resultObject.GetType();
             ResultPropertyCollection properties = new ResultPropertyCollection();
@@ -106,7 +104,7 @@ namespace SqlBatis.DataMapper.MappedStatements
 						}
 						catch
 						{
-							Logger.Error("The column [" + columnName + "] could not be auto mapped to a property on [" + resultObject + "]");
+                            logger.LogError("The column [{ColumnName}] could not be auto mapped to a property on [{ResultObject}]", columnName, resultObject);
 						}
 					}
 					else

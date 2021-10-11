@@ -61,7 +61,7 @@ namespace SqlBatis.DataMapper.Test.NUnit.CommonTests.Utilities
             GC.Collect();
             GC.WaitForPendingFinalizers();
 
-            IGetAccessorFactory factory = new GetAccessorFactory(true);
+            IGetAccessorFactory factory = new GetAccessorFactory();
             IGetAccessor propertyAccessor = factory.CreateGetAccessor(typeof(Property), "Int");
             timer.Start();
             for (int i = 0; i < TEST_ITERATIONS; i++)
@@ -167,7 +167,7 @@ namespace SqlBatis.DataMapper.Test.NUnit.CommonTests.Utilities
             GC.Collect();
             GC.WaitForPendingFinalizers();
 
-            ISetAccessorFactory factory = new SetAccessorFactory(true);
+            ISetAccessorFactory factory = new SetAccessorFactory();
             ISetAccessor propertyAccessor = factory.CreateSetAccessor(typeof(Property), "Int");
             timer.Start();
             for (int i = 0; i < TEST_ITERATIONS; i++)

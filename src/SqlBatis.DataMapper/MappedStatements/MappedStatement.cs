@@ -67,6 +67,8 @@ namespace SqlBatis.DataMapper.MappedStatements
         internal const int NO_SKIPPED_RESULTS = -1;
 
         private IStatement _statement = null;
+        private readonly PreparedCommandFactory _commandFactory;
+        private readonly ResultStrategyFactory _resultFactory;
         private ISqlMapper _sqlMap = null;
         private IPreparedCommand _preparedCommand = null;
         private IResultStrategy _resultStrategy = null;
@@ -110,17 +112,21 @@ namespace SqlBatis.DataMapper.MappedStatements
         #endregion
 
         #region Constructor (s) / Destructor
+
         /// <summary>
         /// Constructor
         /// </summary>
         /// <param name="sqlMap">An SqlMap</param>
         /// <param name="statement">An SQL statement</param>
-        internal MappedStatement(ISqlMapper sqlMap, IStatement statement)
+        /// <param name="commandFactory"></param>
+        internal MappedStatement(ISqlMapper sqlMap, IStatement statement, PreparedCommandFactory commandFactory, ResultStrategyFactory resultFactory)
         {
             _sqlMap = sqlMap;
             _statement = statement;
-            _preparedCommand = PreparedCommandFactory.GetPreparedCommand(false);
-            _resultStrategy = ResultStrategyFactory.Get(_statement);
+            _commandFactory = commandFactory;
+            _resultFactory = resultFactory;
+            _preparedCommand = _commandFactory.GetPreparedCommand(false);
+            _resultStrategy = _resultFactory.Get(_statement);
         }
         #endregion
 

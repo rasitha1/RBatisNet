@@ -24,22 +24,17 @@
  ********************************************************************************/
 #endregion
 
-#region Using
-
 using System;
 using System.Collections.Specialized;
 using System.Data;
-using System.Reflection;
 using System.Text;
-using SqlBatis.DataMapper;
-using SqlBatis.DataMapper.Logging;
+using Microsoft.Extensions.Logging;
 using SqlBatis.DataMapper.Utilities.Objects;
 using SqlBatis.DataMapper.Configuration.ParameterMapping;
 using SqlBatis.DataMapper.Configuration.Statements;
 using SqlBatis.DataMapper.Exceptions;
 using SqlBatis.DataMapper.Scope;
 
-#endregion
 
 namespace SqlBatis.DataMapper.Commands
 {
@@ -48,9 +43,12 @@ namespace SqlBatis.DataMapper.Commands
 	/// </summary>
 	internal class DefaultPreparedCommand : IPreparedCommand
 	{
-		private static readonly ILog Logger = LogManager.GetLogger( MethodBase.GetCurrentMethod().DeclaringType );
-		
-		#region IPreparedCommand Members
+        private readonly ILogger<DefaultPreparedCommand> _logger;
+
+        public DefaultPreparedCommand(ILogger<DefaultPreparedCommand> logger)
+        {
+            _logger = logger;
+        }
 
 		/// <summary>
 		/// Create an IDbCommand for the SqlMapSession and the current SQL Statement
@@ -70,9 +68,9 @@ namespace SqlBatis.DataMapper.Commands
 			
 			request.IDbCommand.CommandText = request.PreparedStatement.PreparedSql;
 
-			if (Logger.IsDebugEnabled)
+			if (_logger.IsEnabled(LogLevel.Debug))
 			{
-				Logger.Debug("Statement Id: [" + statement.Id + "] PreparedStatement : [" + request.IDbCommand.CommandText + "]");
+				_logger.LogDebug("Statement Id: [{StatementId}] PreparedStatement : [{PreparedStatement}]", statement.Id, request.IDbCommand.CommandText);
 			}
 
 			ApplyParameterMap( session, request.IDbCommand, request, statement, parameterObject  );
@@ -104,20 +102,16 @@ namespace SqlBatis.DataMapper.Commands
                 IDbDataParameter parameterCopy = command.CreateParameter();
 				ParameterProperty property = request.ParameterMap.GetProperty(i);
 
-				#region Logging
-				if (Logger.IsDebugEnabled)
+                if (_logger.IsEnabled(LogLevel.Debug))
 				{
                     paramLogList.Append(sqlParameter.ParameterName);
                     paramLogList.Append("=[");
                     typeLogList.Append(sqlParameter.ParameterName);
                     typeLogList.Append("=[");
 				}
-				#endregion
 
 				if (command.CommandType == CommandType.StoredProcedure)
 				{
-					#region store procedure command
-
 					// A store procedure must always use a ParameterMap 
 					// to indicate the mapping order of the properties to the columns
 					if (request.ParameterMap == null) // Inline Parameters
@@ -133,16 +127,13 @@ namespace SqlBatis.DataMapper.Commands
 
 						sqlParameter.Direction = property.Direction;					
 					}
-					#endregion 
 				}
 
-				#region Logging
-				if (Logger.IsDebugEnabled)
+                if (_logger.IsEnabled(LogLevel.Debug))
 				{
                     paramLogList.Append(property.PropertyName);
                     paramLogList.Append(",");
 				}
-				#endregion 					
 
 				request.ParameterMap.SetParameter(property, parameterCopy, parameterObject );
 
@@ -168,9 +159,7 @@ namespace SqlBatis.DataMapper.Commands
 					//parameterCopy.DbType = sqlParameter.DbType;
 				}
 
-
-				#region Logging
-				if (Logger.IsDebugEnabled)
+                if (_logger.IsEnabled(LogLevel.Debug))
 				{
 					if (parameterCopy.Value == DBNull.Value) 
 					{
@@ -182,7 +171,7 @@ namespace SqlBatis.DataMapper.Commands
 					else 
 					{
 
-                        paramLogList.Append(parameterCopy.Value.ToString());
+                        paramLogList.Append(parameterCopy.Value);
                         paramLogList.Append("], ");
 
 						// sqlParameter.DbType could be null (as with Npgsql)
@@ -193,11 +182,10 @@ namespace SqlBatis.DataMapper.Commands
 						//typeLogList.Append( sqlParameter.DbType.ToString() );
                         typeLogList.Append(parameterCopy.DbType.ToString());
                         typeLogList.Append(", ");
-                        typeLogList.Append(parameterCopy.Value.GetType().ToString());
+                        typeLogList.Append(parameterCopy.Value?.GetType());
                         typeLogList.Append("], ");
 					}
 				}
-				#endregion 
 
 				// JIRA-49 Fixes (size, precision, and scale)
 				if (session.DataSource.DbProvider.SetDbParameterSize) 
@@ -223,16 +211,12 @@ namespace SqlBatis.DataMapper.Commands
 				command.Parameters.Add( parameterCopy );
 			}
 
-			#region Logging
-
-			if (Logger.IsDebugEnabled && properties.Count>0)
+            if (_logger.IsEnabled(LogLevel.Debug) && properties.Count>0)
 			{
-                Logger.Debug("Statement Id: [" + statement.Id + "] Parameters: [" + paramLogList.ToString(0, paramLogList.Length - 2) + "]");
-                Logger.Debug("Statement Id: [" + statement.Id + "] Types: [" + typeLogList.ToString(0, typeLogList.Length - 2) + "]");
+				_logger.LogDebug("Statement Id: [{StatementId}] Parameters: [{Parameters}]", statement.Id, paramLogList.ToString(0, paramLogList.Length - 2));
+                _logger.LogDebug("Statement Id: [{StatementId}] Types: [{Types}]", statement.Id, typeLogList.ToString(0, typeLogList.Length - 2));
 			}
-			#endregion 
 		}
 
-		#endregion
 	}
 }

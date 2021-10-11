@@ -26,6 +26,7 @@
 using System.Collections;
 using System.Collections.Generic;
 using System.Data;
+using Microsoft.Extensions.Logging;
 using SqlBatis.DataMapper.Scope;
 
 namespace SqlBatis.DataMapper.MappedStatements.ResultStrategy
@@ -45,12 +46,12 @@ namespace SqlBatis.DataMapper.MappedStatements.ResultStrategy
 		/// <summary>
 		/// Initializes a new instance of the <see cref="ResultClassStrategy"/> class.
 		/// </summary>
-		public ResultClassStrategy()
+		public ResultClassStrategy(ILogger<ResultClassStrategy> logger)
 		{
 			_simpleTypeStrategy = new SimpleTypeStrategy();
 			_dictionaryStrategy = new DictionaryStrategy();
 			_listStrategy = new ListStrategy();
-			_autoMapStrategy = new AutoMapStrategy();
+			_autoMapStrategy = new AutoMapStrategy(logger);
             _genericDictionaryStrategy = new GenericDictionaryStrategy();
         }
 

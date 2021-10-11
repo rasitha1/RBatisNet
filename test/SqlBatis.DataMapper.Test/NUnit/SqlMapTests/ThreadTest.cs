@@ -4,7 +4,6 @@ using System.Collections.Concurrent;
 using System.Threading;
 using System.Configuration;
 using System.Linq;
-using SqlBatis.DataMapper.Logging;
 using NUnit.Framework;
 
 using SqlBatis.DataMapper.Exceptions;
@@ -20,8 +19,7 @@ namespace SqlBatis.DataMapper.Test.NUnit.SqlMapTests
 	[TestFixture] 
 	public class ThreadTest: BaseTest
 	{
-		private static readonly ILog Logger = LogManager.GetLogger( System.Reflection.MethodBase.GetCurrentMethod().DeclaringType );
-
+		
 		private static int _numberOfThreads = 10;
 		private ManualResetEvent  _startEvent = new ManualResetEvent(false);
 		private ManualResetEvent  _stopEvent = new ManualResetEvent(false);

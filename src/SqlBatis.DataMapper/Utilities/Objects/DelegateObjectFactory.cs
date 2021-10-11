@@ -29,7 +29,7 @@ using System.Collections.Specialized;
 using System.Reflection;
 using System.Runtime.CompilerServices;
 using System.Text;
-using SqlBatis.DataMapper.Logging;
+using Microsoft.Extensions.Logging;
 
 namespace SqlBatis.DataMapper.Utilities.Objects
 {
@@ -38,19 +38,24 @@ namespace SqlBatis.DataMapper.Utilities.Objects
     /// </summary>
     public sealed class DelegateObjectFactory : IObjectFactory
     {
+        private readonly ILogger _logger;
         private IDictionary _cachedfactories = new HybridDictionary();
 		private object _padlock = new object();
-        private static readonly ILog Logger = LogManager.GetLogger(MethodBase.GetCurrentMethod().DeclaringType);
+
+        public DelegateObjectFactory(ILogger logger)
+        {
+            _logger = logger;
+        }
 
 		#region IObjectFactory members
-        
-        /// <summary>
-        /// Create a new <see cref="IFactory"/> instance for a given type
-        /// </summary>
-        /// <param name="typeToCreate">The type instance to build</param>
-        /// <param name="types">The types of the constructor arguments</param>
-        /// <returns>Returns a new see <see cref="IFactory"/> instance.</returns>
-        [MethodImpl(MethodImplOptions.Synchronized)]
+
+		/// <summary>
+		/// Create a new <see cref="IFactory"/> instance for a given type
+		/// </summary>
+		/// <param name="typeToCreate">The type instance to build</param>
+		/// <param name="types">The types of the constructor arguments</param>
+		/// <returns>Returns a new see <see cref="IFactory"/> instance.</returns>
+		[MethodImpl(MethodImplOptions.Synchronized)]
 		public IFactory CreateFactory(Type typeToCreate, Type[] types)
 		{
 			string key = GenerateKey(typeToCreate, types);
@@ -65,9 +70,9 @@ namespace SqlBatis.DataMapper.Utilities.Objects
 					{
                         if (typeToCreate.IsAbstract)
                         {
-                            if (Logger.IsInfoEnabled)
+                            if (_logger.IsEnabled(LogLevel.Information))
                             {
-                                Logger.Info("Create a stub IFactory for abstract type " + typeToCreate.Name);
+                                _logger.LogInformation("Create a stub IFactory for abstract type " + typeToCreate.Name);
                             }
                             factory = new AbstractFactory(typeToCreate);
                         }
